@@ -55,7 +55,7 @@ data class RepositorySettings(
     val visibility: RepositoryVisibility = PUBLIC,
     @get:Doc(title = "Redeployment", description = "Does this repository accept redeployment of the same artifact version.")
     val redeployment: Boolean = false,
-    @get:Doc(title = "Preserved snapshots", "By default, Reposilite deletes all deprecated build files. If you'd like to preserve them, set this property to true.")
+    @get:Doc(title = "Preserved snapshots", "By default, Reposilite deletes deprecated build files, including snapshots cached through mirrored repositories. If you'd like to preserve them, set this property to true.")
     val preserveSnapshots: Boolean = false,
     @get:Doc(title = "Storage provider", description = "The storage type of this repository.")
     @get:OneOf(FileSystemStorageProviderSettings::class, S3StorageProviderSettings::class)

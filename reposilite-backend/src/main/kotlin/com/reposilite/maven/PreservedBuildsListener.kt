@@ -30,20 +30,8 @@ internal class PreservedBuildsListener(private val mavenFacade: MavenFacade) : E
             .takeIf { it.toString().endsWith("-SNAPSHOT/maven-metadata.xml") }
             ?: return
 
-        val artifactDirectory = gav.locationBeforeLast("/")
-
-        mavenFacade.findMetadata(repository, artifactDirectory)
-            .merge(repository.storageProvider.getFiles(artifactDirectory)) { metadata, files -> metadata to files }
-            .peek { (metadata, files) ->
-                val snapshotToPreserve = metadata.versioning?.snapshot?.timestamp ?: return@peek
-
-                files
-                    .filter { it.locationAfterLast("/").toString().startsWith(metadata.artifactId!!) }
-                    .filterNot { it.toString().contains(snapshotToPreserve) }
-                    .map { repository.storageProvider.removeFile(it) }
-                    .count()
-                    .also { mavenFacade.logger.info("DEPLOY | Preserved Builds Listener | $it deprecated file(s) have been removed") }
-            }
+        mavenFacade.removeDeprecatedSnapshotBuilds(repository, gav)
+            .peek { mavenFacade.logger.info("DEPLOY | Preserved Builds Listener | $it deprecated file(s) have been removed") }
             .onError { throw RuntimeException(it.toString()) } // not sure how to handle failures of events yet
     }
 
