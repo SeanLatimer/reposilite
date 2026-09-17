@@ -142,6 +142,25 @@ internal abstract class S3DownloadRedirectIntegrationTest : ReposiliteSpecificat
     }
 
     @Test
+    fun `should stream head requests when redirects are enabled`() {
+        // given: a document deployed to a repository with ALWAYS redirect mode
+        val (repository, gav, file) = useDocument("releases", "com/example", "head.jar", "head-content", true)
+
+        // when: a client probes the document with HEAD
+        val response = client.send(
+            HttpRequest.newBuilder(URI.create("$base/$repository/$gav/$file"))
+                .method("HEAD", HttpRequest.BodyPublishers.noBody())
+                .header("User-Agent", "Gradle/8.10")
+                .build(),
+            HttpResponse.BodyHandlers.discarding(),
+        )
+
+        // then: the probe is served by Reposilite rather than redirected to a GET-presigned URL
+        assertThat(response.statusCode()).isEqualTo(200)
+        assertThat(response.headers().firstValue("Location")).isEmpty
+    }
+
+    @Test
     fun `should stream when redirects are disabled`() {
         // given: a document deployed to a repository without S3 redirects
         val (repository, gav, file, content) = useDocument("snapshots", "com/example", "plain.jar", "plain-content", true)
