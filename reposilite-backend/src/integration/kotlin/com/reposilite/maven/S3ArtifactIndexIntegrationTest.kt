@@ -91,6 +91,7 @@ internal abstract class S3ArtifactIndexIntegrationTest : ReposiliteSpecification
                                 region = "us-east-1",
                                 signer = S3Signer.LEGACY_V4,
                                 sharedBucket = true,
+                                downloadRedirect = com.reposilite.storage.DownloadRedirectMode.ALWAYS,
                                 indexSettings = S3IndexSettings(
                                     enabled = true,
                                     serveMetadata = true,
@@ -141,6 +142,33 @@ internal abstract class S3ArtifactIndexIntegrationTest : ReposiliteSpecification
         // then: the out-of-band object becomes visible
         val after = get("$base/api/maven/details/releases/com/example").asString()
         assertThat(after.body).contains("out-of-band.jar")
+    }
+
+    @Test
+    fun `should redirect downloads of indexed repositories to presigned urls`() {
+        // given: an artifact in a repository with both the listing index and download redirects enabled
+        val (_, gav, file, content) = useDocument("releases", "com/example", "lib.jar", "content", true)
+
+        // when: a redirect-capable client requests the artifact
+        val client = java.net.http.HttpClient.newBuilder()
+            .followRedirects(java.net.http.HttpClient.Redirect.NEVER)
+            .build()
+
+        val response = client.send(
+            java.net.http.HttpRequest.newBuilder(URI.create("$base/releases/$gav/$file"))
+                .header("User-Agent", "curl/8.4.0")
+                .GET()
+                .build(),
+            java.net.http.HttpResponse.BodyHandlers.ofString()
+        )
+
+        // then: the download is redirected to the presigned URL
+        assertThat(response.statusCode()).isEqualTo(302)
+        assertThat(response.headers().firstValue("Location").orElseThrow()).contains("X-Amz-Signature")
+
+        // and: browsing still serves the directory through the index
+        val details = get("$base/api/maven/details/releases/$gav").asString()
+        assertThat(details.body).contains(file)
     }
 
     @Test
