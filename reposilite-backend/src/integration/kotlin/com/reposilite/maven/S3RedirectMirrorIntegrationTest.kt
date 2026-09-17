@@ -25,6 +25,7 @@ import com.reposilite.maven.application.MavenSettings
 import com.reposilite.maven.application.MirroredRepositorySettings
 import com.reposilite.maven.application.RepositorySettings
 import com.reposilite.storage.DownloadRedirectMode
+import com.reposilite.storage.api.toLocation
 import com.reposilite.storage.s3.S3Signer
 import com.reposilite.storage.s3.S3StorageProviderSettings
 import org.assertj.core.api.Assertions.assertThat
@@ -140,6 +141,36 @@ internal abstract class S3RedirectMirrorIntegrationTest : ReposiliteSpecificatio
         )
         assertThat(followed.statusCode()).isEqualTo(200)
         assertThat(followed.body()).isEqualTo(content)
+    }
+
+    @Test
+    fun `should not fetch mirror artifacts for head probes`() {
+        // given: an artifact available only from the upstream repository
+        val (_, gav, file, content) = useDocument("releases", "com/example", "probe.jar", "probe-content", true)
+        val location = "$gav/$file".toLocation()
+        val proxiedStorage = mavenFacade.getRepository("proxied")!!.storageProvider
+
+        // when: a client probes the uncached artifact through the proxy
+        val head = client.send(
+            HttpRequest.newBuilder(URI.create("$base/proxied/$gav/$file"))
+                .method("HEAD", HttpRequest.BodyPublishers.noBody())
+                .build(),
+            HttpResponse.BodyHandlers.discarding()
+        )
+
+        // then: metadata is returned without fetching and storing the artifact locally
+        assertThat(head.statusCode()).isEqualTo(200)
+        assertThat(head.headers().firstValue("Content-Length")).hasValue(content.length.toString())
+        assertThat(proxiedStorage.exists(location)).isFalse
+
+        // and: the subsequent GET performs the regular mirror fetch
+        val get = client.send(
+            HttpRequest.newBuilder(URI.create("$base/proxied/$gav/$file")).GET().build(),
+            HttpResponse.BodyHandlers.ofString()
+        )
+        assertThat(get.statusCode()).isEqualTo(200)
+        assertThat(get.body()).isEqualTo(content)
+        assertThat(proxiedStorage.exists(location)).isTrue
     }
 
 }

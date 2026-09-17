@@ -99,6 +99,36 @@ internal fun Context.resultAttachment(
     cache: Boolean,
     data: InputStream
 ) {
+    attachmentHeaders(name, contentType, contentLength, lastTimeModified, compressionStrategy, cache)
+
+    when {
+        acceptsBody() -> result(data)
+        else -> data.silentClose()
+    }
+
+    contentType(contentType)
+}
+
+internal fun Context.headAttachment(
+    name: String,
+    contentType: ContentType,
+    contentLength: Long,
+    lastTimeModified: Instant?,
+    compressionStrategy: String,
+    cache: Boolean,
+) {
+    attachmentHeaders(name, contentType, contentLength, lastTimeModified, compressionStrategy, cache)
+    contentType(contentType)
+}
+
+private fun Context.attachmentHeaders(
+    name: String,
+    contentType: ContentType,
+    contentLength: Long,
+    lastTimeModified: Instant?,
+    compressionStrategy: String,
+    cache: Boolean,
+) {
     header(CONTENT_SECURITY_POLICY, "sandbox")
 
     if (!contentType.isHumanReadable) {
@@ -117,13 +147,6 @@ internal fun Context.resultAttachment(
         cache -> header(CACHE_CONTROL, "public, max-age=$maxAge")
         else -> header(CACHE_CONTROL, "no-cache, no-store, max-age=0")
     }
-
-    when {
-        acceptsBody() -> result(data)
-        else -> data.silentClose()
-    }
-
-    contentType(contentType)
 }
 
 fun Context.acceptsBody(): Boolean =

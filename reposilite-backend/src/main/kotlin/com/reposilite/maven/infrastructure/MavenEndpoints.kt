@@ -22,6 +22,7 @@ import com.reposilite.maven.api.DeleteRequest
 import com.reposilite.maven.api.DeployRequest
 import com.reposilite.maven.api.LookupRequest
 import com.reposilite.shared.ErrorResponse
+import com.reposilite.shared.extensions.headAttachment
 import com.reposilite.shared.extensions.resultAttachment
 import com.reposilite.shared.extensions.uri
 import com.reposilite.storage.api.DirectoryInfo
@@ -97,6 +98,17 @@ internal class MavenEndpoints(
                                     },
                                     { streamFile(ctx, request, details) }
                                 )
+                        HandlerType.HEAD -> {
+                            ctx.headAttachment(
+                                name = details.name,
+                                contentType = details.contentType,
+                                contentLength = details.contentLength,
+                                lastTimeModified = details.lastModifiedTime,
+                                compressionStrategy = compressionStrategy,
+                                cache = mavenFacade.acceptsCachingOf(request),
+                            )
+                            Unit.asSuccess()
+                        }
                         else ->
                             streamFile(ctx, request, details)
                     }
