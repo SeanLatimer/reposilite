@@ -34,6 +34,8 @@ import com.reposilite.shared.notFoundError
 import com.reposilite.shared.unauthorizedError
 import com.reposilite.statistics.StatisticsFacade
 import com.reposilite.statistics.api.IncrementResolvedRequest
+import com.reposilite.storage.DownloadRedirectMode
+import com.reposilite.storage.DownloadRedirectProvider
 import com.reposilite.storage.api.DirectoryInfo
 import com.reposilite.storage.api.DocumentInfo
 import com.reposilite.storage.api.FileDetails
@@ -46,6 +48,7 @@ import panda.std.Result
 import panda.std.asSuccess
 import panda.std.ok
 import java.io.InputStream
+import java.net.URI
 
 internal class RepositoryService(
     private val journalist: Journalist,
@@ -148,6 +151,24 @@ internal class RepositoryService(
 
     fun findInputStream(lookupRequest: LookupRequest): Result<InputStream, ErrorResponse> =
         resolve(lookupRequest) { repository, gav -> findInputStream(repository, gav, lookupRequest.accessToken) }
+
+    fun findDownloadUrl(lookupRequest: LookupRequest, userAgent: String?): Result<URI, ErrorResponse> {
+        val (accessToken, repositoryName, gav) = lookupRequest
+        val repository = repositoryProvider.getRepository(repositoryName) ?: return notFoundError("Repository $repositoryName not found")
+
+        return securityProvider.canAccessResource(accessToken, repository, gav)
+            .flatMap {
+                val provider = repository.storageProvider
+                when {
+                    provider is DownloadRedirectProvider
+                            && provider.downloadRedirectMode != DownloadRedirectMode.OFF
+                            && (provider.downloadRedirectMode == DownloadRedirectMode.ALWAYS || DownloadRedirectPolicy.accepts(userAgent))
+                            && provider.exists(gav) ->
+                        provider.getDownloadUrl(gav)
+                    else -> notFoundError("Download redirect is not available")
+                }
+            }
+    }
 
     private fun findInputStream(repository: Repository, gav: Location, accessToken: AccessTokenIdentifier? = null): Result<InputStream, ErrorResponse> {
         val result = resolutionProvider.resolve(

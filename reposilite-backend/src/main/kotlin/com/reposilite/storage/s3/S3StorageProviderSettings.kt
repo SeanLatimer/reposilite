@@ -17,6 +17,7 @@
 package com.reposilite.storage.s3
 
 import com.reposilite.configuration.shared.api.Doc
+import com.reposilite.storage.DownloadRedirectMode
 import com.reposilite.storage.StorageProviderSettings
 import io.javalin.openapi.Custom
 
@@ -54,6 +55,10 @@ data class S3StorageProviderSettings(
     val sharedBucket: Boolean = false,
     @get:Doc(title = "Local Metadata Cache", description = "Local metadata cache settings (optional). The default is no caching. NOTE: This cache is local only. If you run multiple instances, they will not share the cache!")
     val metadataCacheSettings: S3MetadataCacheSettings? = null,
+    @get:Doc(title = "Download Redirect", description = "Redirect file downloads to short-lived presigned S3 URLs instead of proxying them through Reposilite. OFF always streams content through Reposilite (default). AUTO redirects only clients known to follow HTTP redirects (curl, wget, browsers) and streams for everything else. ALWAYS redirects all clients, which requires them to follow HTTP redirects. Redirected responses are not cacheable and bypass Reposilite compression. (optional)")
+    val downloadRedirect: DownloadRedirectMode = DownloadRedirectMode.OFF,
+    @get:Doc(title = "Download Redirect Validity", description = "Validity window of presigned download URLs in seconds (optional)")
+    val downloadRedirectValiditySeconds: Long = 300,
 ) : StorageProviderSettings
 
 fun S3StorageProviderSettings.resolveKeyPrefix(repositoryName: String): String {

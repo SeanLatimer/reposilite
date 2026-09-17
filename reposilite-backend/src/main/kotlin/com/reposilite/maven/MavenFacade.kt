@@ -38,6 +38,7 @@ import com.reposilite.storage.api.Location
 import com.reposilite.token.AccessTokenIdentifier
 import panda.std.Result
 import java.io.InputStream
+import java.net.URI
 
 class MavenFacade internal constructor(
     private val journalist: Journalist,
@@ -57,6 +58,9 @@ class MavenFacade internal constructor(
 
     fun findData(lookupRequest: LookupRequest): Result<InputStream, ErrorResponse> =
         repositoryService.findInputStream(lookupRequest)
+
+    fun findDownloadUrl(lookupRequest: LookupRequest, userAgent: String?): Result<URI, ErrorResponse> =
+        repositoryService.findDownloadUrl(lookupRequest, userAgent)
 
     fun deployFile(deployRequest: DeployRequest): Result<Unit, ErrorResponse> =
         repositoryService.deployFile(deployRequest)
