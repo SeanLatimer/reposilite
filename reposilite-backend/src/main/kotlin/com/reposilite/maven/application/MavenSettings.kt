@@ -36,8 +36,8 @@ import io.javalin.openapi.OneOf
 @JsonSchema(requireNonNulls = false)
 @Doc(title = "Maven", description = "Repositories settings")
 data class MavenSettings(
-    @get:Doc(title = "AUTO Redirect User Agents", description = "Case-insensitive substrings of User-Agent headers allowed to receive presigned download redirects when a repository uses AUTO redirect mode. The default allows curl, wget, and browsers. An empty list disables AUTO redirects; OFF and ALWAYS modes are unaffected.")
-    val downloadRedirectUserAgents: List<String> = listOf("curl/", "wget/", "mozilla/"),
+    @get:Doc(title = "AUTO Redirect User Agents", description = "Case-insensitive substrings of User-Agent headers allowed to receive presigned download redirects when a repository uses AUTO redirect mode. The default allows curl, wget, browsers, Apache Maven, Gradle, and Coursier. An empty list disables AUTO redirects; OFF and ALWAYS modes are unaffected.")
+    val downloadRedirectUserAgents: List<String> = listOf("curl/", "wget/", "mozilla/", "apache-maven/", "gradle/", "coursier/"),
     @get:Doc(title = "Repositories", description = "List of Maven repositories.")
     val repositories: List<RepositorySettings> = listOf(
         RepositorySettings("releases"),

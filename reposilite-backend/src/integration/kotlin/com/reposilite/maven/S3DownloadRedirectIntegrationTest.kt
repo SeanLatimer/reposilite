@@ -130,13 +130,15 @@ internal abstract class S3DownloadRedirectIntegrationTest : ReposiliteSpecificat
         // then: the browser is redirected
         assertThat(browser.statusCode()).isEqualTo(302)
 
-        // when: a build tool or an unknown client requests the document
+        // when: a known build tool or an unknown client requests the document
         val maven = get("$base/$repository/$gav/$file", userAgent = "Apache-Maven/3.9.9 (Java 17.0.7; Windows 11 10.0)")
+        val ivy = get("$base/$repository/$gav/$file", userAgent = "Apache Ivy/2.5.2")
         val unknown = get("$base/$repository/$gav/$file", userAgent = null)
 
-        // then: content is streamed as usual
-        assertThat(maven.statusCode()).isEqualTo(200)
-        assertThat(maven.body()).isEqualTo(content)
+        // then: known clients redirect while unknown and unverified clients stream as usual
+        assertThat(maven.statusCode()).isEqualTo(302)
+        assertThat(ivy.statusCode()).isEqualTo(200)
+        assertThat(ivy.body()).isEqualTo(content)
         assertThat(unknown.statusCode()).isEqualTo(200)
         assertThat(unknown.body()).isEqualTo(content)
     }
