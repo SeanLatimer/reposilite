@@ -164,7 +164,7 @@ internal abstract class S3DownloadRedirectIntegrationTest : ReposiliteSpecificat
     @Test
     fun `should stream head requests when redirects are enabled`() {
         // given: a document deployed to a repository with ALWAYS redirect mode
-        val (repository, gav, file) = useDocument("releases", "com/example", "head.jar", "head-content", true)
+        val (repository, gav, file, content) = useDocument("releases", "com/example", "head.jar", "head-content", true)
 
         // when: a client probes the document with HEAD
         val response = client.send(
@@ -178,6 +178,8 @@ internal abstract class S3DownloadRedirectIntegrationTest : ReposiliteSpecificat
         // then: the probe is served by Reposilite rather than redirected to a GET-presigned URL
         assertThat(response.statusCode()).isEqualTo(200)
         assertThat(response.headers().firstValue("Location")).isEmpty
+        assertThat(response.headers().firstValue("Content-Length")).hasValue(content.length.toString())
+        assertThat(response.headers().firstValue("Last-Modified")).isPresent
     }
 
     @Test
