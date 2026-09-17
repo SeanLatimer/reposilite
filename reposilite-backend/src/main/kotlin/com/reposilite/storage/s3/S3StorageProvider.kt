@@ -23,6 +23,8 @@ import com.reposilite.shared.badRequestError
 import com.reposilite.shared.internalServerError
 import com.reposilite.shared.notFoundError
 import com.reposilite.status.FailureFacade
+import com.reposilite.storage.DownloadRedirectMode
+import com.reposilite.storage.DownloadRedirectProvider
 import com.reposilite.storage.StorageProvider
 import com.reposilite.storage.api.DirectoryInfo
 import com.reposilite.storage.api.DocumentInfo
@@ -52,10 +54,14 @@ import software.amazon.awssdk.services.s3.model.NoSuchBucketException
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException
 import software.amazon.awssdk.services.s3.model.PutObjectRequest
 import software.amazon.awssdk.services.s3.model.S3Object
+import software.amazon.awssdk.services.s3.presigner.S3Presigner
+import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest
 import java.io.File
 import java.io.IOException
 import java.io.InputStream
+import java.net.URI
 import java.nio.file.attribute.FileTime
+import java.time.Duration
 import java.time.Instant
 
 private val skipBucketCreation = System.getProperty("reposilite.s3.skip-bucket-creation", "false") == "true"
@@ -65,7 +71,10 @@ class S3StorageProvider(
     private val s3: S3Client,
     private val bucket: String,
     private val keyPrefix: String = "",
-) : StorageProvider, Journalist {
+    private val presigner: S3Presigner? = null,
+    override val downloadRedirectMode: DownloadRedirectMode = DownloadRedirectMode.OFF,
+    private val downloadRedirectValidity: Duration = Duration.ofSeconds(300),
+) : StorageProvider, DownloadRedirectProvider, Journalist {
 
     init {
         if (!skipBucketCreation) {
@@ -93,6 +102,32 @@ class S3StorageProvider(
 
     override fun shutdown() {
         s3.close()
+        presigner?.close()
+    }
+
+    override fun getDownloadUrl(location: Location): Result<URI, ErrorResponse> {
+        val urlPresigner = presigner ?: return internalServerError("Presigned URLs are not configured")
+
+        return try {
+            val request = GetObjectRequest.builder()
+                .bucket(bucket)
+                .key(location.toBucketKey())
+                .also { builder ->
+                    builder.responseContentDisposition("attachment; filename=\"${location.getSimpleName()}\"")
+                    ContentType.contentTypeByExtension(location.getExtension())
+                        ?.let { builder.responseContentType(it.toString()) }
+                }
+                .build()
+
+            val presignRequest = GetObjectPresignRequest.builder()
+                .signatureDuration(downloadRedirectValidity)
+                .getObjectRequest(request)
+                .build()
+
+            urlPresigner.presignGetObject(presignRequest).url().toURI().asSuccess()
+        } catch (exception: Exception) {
+            internalServerError("Failed to generate presigned download URL: ${exception.message}")
+        }
     }
 
     override fun putFile(location: Location, inputStream: InputStream): Result<Unit, ErrorResponse> =

@@ -21,6 +21,7 @@ import com.github.benmanes.caffeine.cache.Caffeine
 import com.reposilite.journalist.Journalist
 import com.reposilite.shared.maskSecret
 import com.reposilite.status.FailureFacade
+import com.reposilite.storage.DownloadRedirectMode
 import com.reposilite.storage.StorageProviderFactory
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider
@@ -30,6 +31,7 @@ import software.amazon.awssdk.regions.Region
 import software.amazon.awssdk.services.s3.S3Client
 import software.amazon.awssdk.services.s3.S3Configuration
 import software.amazon.awssdk.services.s3.model.HeadObjectResponse
+import software.amazon.awssdk.services.s3.presigner.S3Presigner
 import java.net.URI
 import java.nio.file.Path
 import java.time.Duration
@@ -61,16 +63,18 @@ class S3StorageProviderFactory : StorageProviderFactory<S3StorageProvider, S3Sto
             )
         }
 
-        if (settings.accessKey.isNotEmpty() && settings.secretKey.isNotEmpty()) {
-            client.credentialsProvider(
+        val credentialsProvider = when {
+            settings.accessKey.isNotEmpty() && settings.secretKey.isNotEmpty() ->
                 StaticCredentialsProvider.create(
                     AwsBasicCredentials.create(
                         settings.accessKey,
                         settings.secretKey
                     )
                 )
-            )
+            else -> null
         }
+
+        credentialsProvider?.let { client.credentialsProvider(it) }
 
         // The AWS Java SDK uses by default the env variable AWS_REGION to determine the region
         // We use reposilite as a dummy region for S3-compatible providers, see https://github.com/dzikoysk/reposilite/issues/1666
@@ -116,6 +120,26 @@ class S3StorageProviderFactory : StorageProviderFactory<S3StorageProvider, S3Sto
                 else -> client.build()
             }
 
+        val presigner = when {
+            settings.downloadRedirect == DownloadRedirectMode.OFF -> null
+            else -> {
+                val builder = S3Presigner.builder()
+
+                if (pathStyleAccessEnabled) {
+                    builder.serviceConfiguration(
+                        S3Configuration.builder()
+                            .pathStyleAccessEnabled(true)
+                            .build()
+                    )
+                }
+
+                credentialsProvider?.let { builder.credentialsProvider(it) }
+                builder.region(region)
+                customEndpoint?.let { builder.endpointOverride(it) }
+                builder.build()
+            }
+        }
+
         val keyPrefix = settings.resolveKeyPrefix(repositoryName)
 
         return try {
@@ -123,7 +147,10 @@ class S3StorageProviderFactory : StorageProviderFactory<S3StorageProvider, S3Sto
                 failureFacade = failureFacade,
                 s3 = s3Client,
                 bucket = settings.bucketName,
-                keyPrefix = keyPrefix
+                keyPrefix = keyPrefix,
+                presigner = presigner,
+                downloadRedirectMode = settings.downloadRedirect,
+                downloadRedirectValidity = Duration.ofSeconds(settings.downloadRedirectValiditySeconds.coerceAtLeast(1))
             )
         } catch (exception: Exception) {
             failureFacade.logger.error("Cannot connect to S3 storage provider: ${exception.message}")
@@ -134,6 +161,7 @@ class S3StorageProviderFactory : StorageProviderFactory<S3StorageProvider, S3Sto
             failureFacade.logger.error("  - Custom endpoint: $customEndpoint")
             failureFacade.logger.error("  - Path style access: $pathStyleAccessEnabled")
             failureFacade.logger.error("  - Signer: $signer")
+            failureFacade.logger.error("  - Download redirect: ${settings.downloadRedirect}")
             failureFacade.logger.error("  - Access key: ${maskSecret(settings.accessKey)}")
             failureFacade.logger.error("  - Secret key: ${maskSecret(settings.secretKey)}")
             throw IllegalStateException("Failed to initialize S3 storage provider", exception)

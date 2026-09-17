@@ -36,6 +36,7 @@ import io.javalin.community.routing.Route.POST
 import io.javalin.community.routing.Route.PUT
 import io.javalin.http.Context
 import io.javalin.openapi.ContentType.FORM_DATA_MULTIPART
+import io.javalin.http.Header
 import io.javalin.openapi.HttpMethod
 import io.javalin.openapi.OpenApi
 import io.javalin.openapi.OpenApiContent
@@ -43,6 +44,7 @@ import io.javalin.openapi.OpenApiParam
 import io.javalin.openapi.OpenApiResponse
 import panda.std.Result
 import panda.std.asSuccess
+import java.net.URI
 
 const val X_GENERATE_CHECKSUMS = "X-Generate-Checksums"
 
@@ -64,6 +66,7 @@ internal class MavenEndpoints(
         ],
         responses = [
             OpenApiResponse(status = "200", description = "Input stream of requested file", content = [OpenApiContent(type = FORM_DATA_MULTIPART)]),
+            OpenApiResponse(status = "302", description = "Redirects to a presigned storage URL if the requested file is stored by a storage provider with download redirects enabled"),
             OpenApiResponse(status = "404", description = "Returns 404 (for Maven) with frontend (for user) as a response if requested resource is not located in the current repository")
         ]
     )
@@ -82,17 +85,15 @@ internal class MavenEndpoints(
         return allDetails.flatMap { details ->
             when (details) {
                 is DocumentInfo ->
-                    mavenFacade.findData(request).map { data ->
-                        ctx.resultAttachment(
-                            name = details.name,
-                            contentType = details.contentType,
-                            contentLength = details.contentLength,
-                            lastTimeModified = details.lastModifiedTime,
-                            compressionStrategy = compressionStrategy,
-                            cache = mavenFacade.acceptsCachingOf(request),
-                            data = data,
+                    mavenFacade.findDownloadUrl(request, ctx.userAgent())
+                        .fold(
+                            { url ->
+                                ctx.header(Header.CACHE_CONTROL, "no-store")
+                                ctx.redirect(url.toString())
+                                Unit.asSuccess()
+                            },
+                            { streamFile(ctx, request, details) }
                         )
-                    }
                 is DirectoryInfo -> {
                     ctx.html(
                         createDirectoryIndexPage(
@@ -118,6 +119,19 @@ internal class MavenEndpoints(
             mavenFacade.logger.debug("FIND | Could not find file due to $it")
         }
     }
+
+    private fun streamFile(ctx: Context, request: LookupRequest, details: DocumentInfo): Result<Unit, ErrorResponse> =
+        mavenFacade.findData(request).map { data ->
+            ctx.resultAttachment(
+                name = details.name,
+                contentType = details.contentType,
+                contentLength = details.contentLength,
+                lastTimeModified = details.lastModifiedTime,
+                compressionStrategy = compressionStrategy,
+                cache = mavenFacade.acceptsCachingOf(request),
+                data = data,
+            )
+        }
 
     @OpenApi(
         tags = [ "Maven" ],
