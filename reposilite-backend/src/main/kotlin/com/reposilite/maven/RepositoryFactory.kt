@@ -20,12 +20,17 @@ import com.reposilite.auth.AuthenticationFacade
 import com.reposilite.journalist.Journalist
 import com.reposilite.maven.application.MirroredRepositorySettings
 import com.reposilite.maven.application.RepositorySettings
+import com.reposilite.maven.index.ArtifactIndexDatabase
+import com.reposilite.maven.index.IndexedStorageProvider
 import com.reposilite.shared.http.RemoteClientProvider
 import com.reposilite.shared.http.createHttpProxy
 import com.reposilite.status.FailureFacade
 import com.reposilite.storage.StorageFacade
+import com.reposilite.storage.StorageProvider
+import com.reposilite.storage.s3.S3StorageProviderSettings
 import java.nio.file.Path
 import java.nio.file.Paths
+import java.time.Clock
 import java.util.UUID
 
 internal class RepositoryFactory(
@@ -36,6 +41,7 @@ internal class RepositoryFactory(
     private val repositoryService: RepositoryService,
     private val failureFacade: FailureFacade,
     private val storageFacade: StorageFacade,
+    private val artifactIndexDatabase: ArtifactIndexDatabase,
     private val repositoriesNames: Collection<String>,
 ) {
 
@@ -48,8 +54,10 @@ internal class RepositoryFactory(
             redeployment = configuration.redeployment,
             preserveSnapshots = configuration.preserveSnapshots,
             mirrorHosts = configuration.proxied.mapNotNull { createMirroredHostConfiguration(it) },
-            storageProvider =
-                storageFacade
+            storageProvider = decorateWithIndex(
+                repositoryName = repositoryName,
+                configuration = configuration,
+                storageProvider = storageFacade
                     .createStorageProvider(
                         journalist = journalist,
                         failureFacade = failureFacade,
@@ -58,12 +66,29 @@ internal class RepositoryFactory(
                         storageSettings = configuration.storageProvider,
                     )
                     ?: throw IllegalArgumentException("Unknown storage provider '${configuration.storageProvider.type}'"),
+            ),
             storagePolicy = configuration.storagePolicy,
             metadataMaxAgeInSeconds = configuration.metadataMaxAge,
             parallelMetadataLookup = configuration.parallelMetadataLookup,
             resolutionCacheMaxEntries = configuration.resolutionCacheMaxEntries,
             resolutionCacheLevel = configuration.resolutionCacheLevel,
         )
+
+    private fun decorateWithIndex(repositoryName: String, configuration: RepositorySettings, storageProvider: StorageProvider): StorageProvider =
+        when (val indexSettings = (configuration.storageProvider as? S3StorageProviderSettings)?.indexSettings) {
+            null -> storageProvider
+            else -> when {
+                !indexSettings.enabled -> storageProvider
+                else -> IndexedStorageProvider(
+                    journalist = journalist,
+                    delegate = storageProvider,
+                    index = artifactIndexDatabase.open(),
+                    repository = repositoryName,
+                    settings = indexSettings,
+                    clock = Clock.systemDefaultZone(),
+                )
+            }
+        }
 
     private fun createMirroredHostConfiguration(configurationSource: MirroredRepositorySettings): MirrorHost? {
         val name = configurationSource.reference.trim()

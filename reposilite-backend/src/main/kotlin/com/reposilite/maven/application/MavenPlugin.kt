@@ -26,6 +26,9 @@ import com.reposilite.maven.infrastructure.CacheCommand
 import com.reposilite.maven.infrastructure.MavenApiEndpoints
 import com.reposilite.maven.infrastructure.MavenEndpoints
 import com.reposilite.maven.infrastructure.MavenLatestApiEndpoints
+import com.reposilite.maven.infrastructure.S3IndexCommand
+import com.reposilite.maven.index.ArtifactIndexSweeper
+import com.reposilite.maven.index.IndexedStorageProvider
 import com.reposilite.plugin.api.Plugin
 import com.reposilite.plugin.api.ReposiliteDisposeEvent
 import com.reposilite.plugin.api.ReposilitePlugin
@@ -35,6 +38,7 @@ import com.reposilite.plugin.parameters
 import com.reposilite.plugin.reposilite
 import com.reposilite.web.api.RoutingSetupEvent
 import java.time.Clock
+import java.util.concurrent.TimeUnit
 
 @Plugin(
     name = "maven",
@@ -79,9 +83,23 @@ internal class MavenPlugin : ReposilitePlugin() {
 
         event { event: CommandsSetupEvent ->
             event.registerCommand(CacheCommand(mavenFacade))
+            event.registerCommand(S3IndexCommand(mavenFacade))
         }
 
+        val artifactIndexSweeper = ArtifactIndexSweeper(
+            journalist = this,
+            ioService = reposilite().ioService,
+            clock = Clock.systemDefaultZone(),
+            indexes = { mavenFacade.getRepositories().mapNotNull { it.storageProvider as? IndexedStorageProvider } },
+        )
+
+        val scheduledReconciliation = reposilite().scheduler.scheduleWithFixedDelay(
+            { artifactIndexSweeper.tick() },
+            1, 1, TimeUnit.MINUTES
+        )
+
         event { _: ReposiliteDisposeEvent ->
+            scheduledReconciliation.cancel(false)
             mavenFacade.getRepositories().forEach {
                 it.shutdown()
             }

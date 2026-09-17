@@ -54,7 +54,19 @@ data class S3StorageProviderSettings(
     val sharedBucket: Boolean = false,
     @get:Doc(title = "Local Metadata Cache", description = "Local metadata cache settings (optional). The default is no caching. NOTE: This cache is local only. If you run multiple instances, they will not share the cache!")
     val metadataCacheSettings: S3MetadataCacheSettings? = null,
+    @get:Doc(title = "Listing Index", description = "Maintain a local index of stored objects to serve directory listings without S3 LIST requests. Updated on deploys and deletes, periodically reconciled against S3 (S3 remains the source of truth). Out-of-band changes become visible after the next reconciliation. (optional)")
+    val indexSettings: S3IndexSettings? = null,
 ) : StorageProviderSettings
+
+@Doc(title = "S3 Listing Index", description = "Local index of S3 objects used to serve repository listings")
+data class S3IndexSettings(
+    @get:Doc(title = "Enabled", description = "Enable the listing index for this repository?")
+    val enabled: Boolean = false,
+    @get:Doc(title = "Serve Metadata", description = "Also serve single-file metadata (size, modification time) from the index instead of querying S3. Objects modified outside Reposilite serve stale metadata until the next reconciliation.")
+    val serveMetadata: Boolean = false,
+    @get:Doc(title = "Reconciliation Interval", description = "Interval between index reconciliations with S3 in seconds")
+    val reconciliationIntervalSeconds: Long = 60 * 60 * 24, // 1 day
+)
 
 fun S3StorageProviderSettings.resolveKeyPrefix(repositoryName: String): String {
     val base =

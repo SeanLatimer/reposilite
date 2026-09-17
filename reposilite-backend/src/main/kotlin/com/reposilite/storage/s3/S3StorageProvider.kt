@@ -23,6 +23,8 @@ import com.reposilite.shared.badRequestError
 import com.reposilite.shared.internalServerError
 import com.reposilite.shared.notFoundError
 import com.reposilite.status.FailureFacade
+import com.reposilite.storage.FullListingProvider
+import com.reposilite.storage.ListedObject
 import com.reposilite.storage.StorageProvider
 import com.reposilite.storage.api.DirectoryInfo
 import com.reposilite.storage.api.DocumentInfo
@@ -65,7 +67,7 @@ class S3StorageProvider(
     private val s3: S3Client,
     private val bucket: String,
     private val keyPrefix: String = "",
-) : StorageProvider, Journalist {
+) : StorageProvider, FullListingProvider, Journalist {
 
     init {
         if (!skipBucketCreation) {
@@ -304,6 +306,27 @@ class S3StorageProvider(
 
     override fun canHold(contentLength: Long): Result<Long, ErrorResponse> =
         ok(Long.MAX_VALUE)
+
+    override fun listAllObjects(): Result<List<ListedObject>, ErrorResponse> =
+        try {
+            val request = ListObjectsV2Request.builder()
+                .bucket(bucket)
+                .prefix(keyPrefix)
+                .build()
+
+            s3.listObjectsV2Paginator(request)
+                .contents()
+                .map { obj ->
+                    ListedObject(
+                        key = obj.key().withoutKeyPrefix(),
+                        size = obj.size(),
+                        lastModifiedTime = obj.lastModified(),
+                    )
+                }
+                .asSuccess()
+        } catch (exception: Exception) {
+            internalServerError(exception.localizedMessage)
+        }
 
     override fun getLogger(): Logger =
         failureFacade.logger

@@ -26,6 +26,7 @@ import com.reposilite.maven.MirrorService
 import com.reposilite.maven.ResolutionProvider
 import com.reposilite.maven.RepositoryProvider
 import com.reposilite.maven.RepositorySecurityProvider
+import com.reposilite.maven.index.ArtifactIndexDatabase
 import com.reposilite.plugin.Extensions
 import com.reposilite.plugin.api.PluginComponents
 import com.reposilite.shared.http.RemoteClientProvider
@@ -52,6 +53,7 @@ internal class MavenComponents(
     private val ioService: ExecutorService,
     private val mavenSettings: Reference<MavenSettings>,
     private val frontendSettings: Reference<FrontendSettings>,
+    private val artifactIndexDatabase: ArtifactIndexDatabase = ArtifactIndexDatabase(workingDirectory.resolve(".local")),
 ) : PluginComponents {
 
     private fun securityProvider(): RepositorySecurityProvider =
@@ -83,6 +85,7 @@ internal class MavenComponents(
             authenticationFacade = authenticationFacade,
             failureFacade = failureFacade,
             storageFacade = storageFacade,
+            artifactIndexDatabase = artifactIndexDatabase,
             mirrorService = mirrorService,
             resolutionProvider = resolutionProvider,
             statisticsFacade = statisticsFacade,
