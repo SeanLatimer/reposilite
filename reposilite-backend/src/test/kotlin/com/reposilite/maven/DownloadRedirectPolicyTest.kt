@@ -21,7 +21,7 @@ import org.junit.jupiter.api.Test
 
 internal class DownloadRedirectPolicyTest {
 
-    private val defaultUserAgents = listOf("curl/", "wget/", "mozilla/")
+    private val defaultUserAgents = listOf("curl/", "wget/", "mozilla/", "apache-maven/", "gradle/", "coursier/")
 
     @Test
     fun `should accept curl`() {
@@ -46,10 +46,16 @@ internal class DownloadRedirectPolicyTest {
     }
 
     @Test
-    fun `should reject build tools with unverified redirect support`() {
-        assertThat(DownloadRedirectPolicy.accepts("Apache-Maven/3.9.9 (Java 17.0.7; Windows 11 10.0)", defaultUserAgents)).isFalse
-        assertThat(DownloadRedirectPolicy.accepts("Gradle/8.9 (Linux 6.5.0; amd64; 17.0.7)", defaultUserAgents)).isFalse
+    fun `should accept Maven Gradle and Coursier`() {
+        assertThat(DownloadRedirectPolicy.accepts("Apache-Maven/3.9.9 (Java 17.0.7; Windows 11 10.0)", defaultUserAgents)).isTrue
+        assertThat(DownloadRedirectPolicy.accepts("Gradle/8.9 (Linux 6.5.0; amd64; 17.0.7)", defaultUserAgents)).isTrue
+        assertThat(DownloadRedirectPolicy.accepts("Coursier/2.1.24", defaultUserAgents)).isTrue
+    }
+
+    @Test
+    fun `should reject unverified build tools`() {
         assertThat(DownloadRedirectPolicy.accepts("Apache Ivy/2.5.2", defaultUserAgents)).isFalse
+        assertThat(DownloadRedirectPolicy.accepts("sbt/1.10.0", defaultUserAgents)).isFalse
     }
 
     @Test

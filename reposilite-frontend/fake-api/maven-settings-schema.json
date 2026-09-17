@@ -4,7 +4,7 @@
   "properties": {
     "downloadRedirectUserAgents": {
       "title": "AUTO Redirect User Agents",
-      "description": "Case-insensitive substrings of User-Agent headers allowed to receive presigned download redirects when a repository uses AUTO redirect mode. The default allows curl, wget, and browsers. An empty list disables AUTO redirects; OFF and ALWAYS modes are unaffected.",
+      "description": "Case-insensitive substrings of User-Agent headers allowed to receive presigned download redirects when a repository uses AUTO redirect mode. The default allows curl, wget, browsers, Apache Maven, Gradle, and Coursier. An empty list disables AUTO redirects; OFF and ALWAYS modes are unaffected.",
       "type": "array",
       "items": {
         "type": "string"

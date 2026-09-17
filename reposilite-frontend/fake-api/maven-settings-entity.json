@@ -1,5 +1,5 @@
 {
-  "downloadRedirectUserAgents": ["curl/", "wget/", "mozilla/"],
+  "downloadRedirectUserAgents": ["curl/", "wget/", "mozilla/", "apache-maven/", "gradle/", "coursier/"],
   "repositories": [
     {
       "id": "releases",
