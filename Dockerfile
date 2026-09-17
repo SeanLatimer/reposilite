@@ -39,7 +39,7 @@ WORKDIR /app
 
 # Import application code
 COPY --chmod=755 entrypoint.sh entrypoint.sh
-COPY --from=build /home/reposilite-build/reposilite-backend/build/libs/reposilite-3*.jar reposilite.jar
+COPY --from=build /home/reposilite-build/reposilite-backend/build/libs/reposilite-[0-9]*.jar reposilite.jar
 
 HEALTHCHECK --interval=30s --timeout=30s --start-period=15s \
     --retries=3 CMD [ "sh", "-c", "URL=$(cat /app/data/.local/reposilite.address); echo -n \"curl $URL... \"; \
