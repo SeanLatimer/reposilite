@@ -19,8 +19,10 @@ package com.reposilite.maven
 internal object DownloadRedirectPolicy {
 
     // Clients known to follow HTTP redirects on artifact downloads. Build tools (Maven, Gradle, Ivy)
-    // are deliberately absent: several versions of their HTTP stacks do not follow 3xx responses,
-    // and their support is yet to be verified - unknown or unparseable agents must receive streamed content.
+    // are deliberately absent: redirect support depends on the HTTP transport each tool bundles and
+    // its configuration (including credential handling across origins), which has not been verified
+    // by an actual compatibility matrix yet. AUTO fails safe - a wrong guess streams the artifact
+    // instead of breaking the client.
     private val redirectCapableAgents = listOf("curl/", "wget/", "mozilla/")
 
     fun accepts(userAgent: String?): Boolean =
