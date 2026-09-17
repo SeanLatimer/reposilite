@@ -25,6 +25,8 @@ import com.reposilite.shared.notFoundError
 import com.reposilite.status.FailureFacade
 import com.reposilite.storage.DownloadRedirectMode
 import com.reposilite.storage.DownloadRedirectProvider
+import com.reposilite.storage.FullListingProvider
+import com.reposilite.storage.ListedObject
 import com.reposilite.storage.StorageProvider
 import com.reposilite.storage.api.DirectoryInfo
 import com.reposilite.storage.api.DocumentInfo
@@ -74,7 +76,7 @@ class S3StorageProvider(
     private val presigner: S3Presigner? = null,
     override val downloadRedirectMode: DownloadRedirectMode = DownloadRedirectMode.OFF,
     private val downloadRedirectValidity: Duration = Duration.ofSeconds(300),
-) : StorageProvider, DownloadRedirectProvider, Journalist {
+) : StorageProvider, DownloadRedirectProvider, FullListingProvider, Journalist {
 
     init {
         if (!skipBucketCreation) {
@@ -339,6 +341,27 @@ class S3StorageProvider(
 
     override fun canHold(contentLength: Long): Result<Long, ErrorResponse> =
         ok(Long.MAX_VALUE)
+
+    override fun listAllObjects(): Result<List<ListedObject>, ErrorResponse> =
+        try {
+            val request = ListObjectsV2Request.builder()
+                .bucket(bucket)
+                .prefix(keyPrefix)
+                .build()
+
+            s3.listObjectsV2Paginator(request)
+                .contents()
+                .map { obj ->
+                    ListedObject(
+                        key = obj.key().withoutKeyPrefix(),
+                        size = obj.size(),
+                        lastModifiedTime = obj.lastModified(),
+                    )
+                }
+                .asSuccess()
+        } catch (exception: Exception) {
+            internalServerError(exception.localizedMessage)
+        }
 
     override fun getLogger(): Logger =
         failureFacade.logger

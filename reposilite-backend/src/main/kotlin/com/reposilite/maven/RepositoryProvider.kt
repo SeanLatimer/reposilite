@@ -19,6 +19,7 @@ package com.reposilite.maven
 import com.reposilite.auth.AuthenticationFacade
 import com.reposilite.journalist.Journalist
 import com.reposilite.maven.application.RepositorySettings
+import com.reposilite.maven.index.ArtifactIndexDatabase
 import com.reposilite.plugin.Extensions
 import com.reposilite.shared.ErrorResponse
 import com.reposilite.shared.http.RemoteClientProvider
@@ -42,6 +43,7 @@ internal class RepositoryProvider(
     private val failureFacade: FailureFacade,
     statisticsFacade: StatisticsFacade,
     private val storageFacade: StorageFacade,
+    private val artifactIndexDatabase: ArtifactIndexDatabase,
     mirrorService: MirrorService,
     resolutionProvider: ResolutionProvider,
     repositorySecurityProvider: RepositorySecurityProvider,
@@ -75,6 +77,7 @@ internal class RepositoryProvider(
             remoteClientProvider = remoteClientProvider,
             failureFacade = failureFacade,
             storageFacade = storageFacade,
+            artifactIndexDatabase = artifactIndexDatabase,
             repositoryService = repositoryService,
             repositoriesNames = repositoriesConfiguration.map { it.id },
         )
