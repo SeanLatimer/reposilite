@@ -142,6 +142,24 @@ internal abstract class S3DownloadRedirectIntegrationTest : ReposiliteSpecificat
     }
 
     @Test
+    fun `should use the global auto redirect user agent allowlist`() {
+        // given: AUTO mode configured globally for a custom client only
+        reposilite.extensions.facade<SharedConfigurationFacade>().getDomainSettings<MavenSettings>().update {
+            it.copy(downloadRedirectUserAgents = listOf("myprobe/"))
+        }
+        val (repository, gav, file, content) = useDocument("redirect-auto", "com/example", "custom.jar", "custom-content", true)
+
+        // when: the configured client and a default client request the document
+        val customClient = get("$base/$repository/$gav/$file", userAgent = "MyProbe/1.0")
+        val curl = get("$base/$repository/$gav/$file", userAgent = "curl/8.4.0")
+
+        // then: the configured list replaces the default allowlist
+        assertThat(customClient.statusCode()).isEqualTo(302)
+        assertThat(curl.statusCode()).isEqualTo(200)
+        assertThat(curl.body()).isEqualTo(content)
+    }
+
+    @Test
     fun `should stream head requests when redirects are enabled`() {
         // given: a document deployed to a repository with ALWAYS redirect mode
         val (repository, gav, file) = useDocument("releases", "com/example", "head.jar", "head-content", true)

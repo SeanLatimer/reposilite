@@ -45,6 +45,7 @@ internal class RepositoryProvider(
     mirrorService: MirrorService,
     resolutionProvider: ResolutionProvider,
     repositorySecurityProvider: RepositorySecurityProvider,
+    downloadRedirectUserAgents: Reference<List<String>>,
     repositoriesSource: Reference<List<RepositorySettings>>,
 ) {
 
@@ -55,7 +56,8 @@ internal class RepositoryProvider(
         mirrorService = mirrorService,
         resolutionProvider = resolutionProvider,
         statisticsFacade = statisticsFacade,
-        extensions = extensions
+        extensions = extensions,
+        downloadRedirectUserAgents = downloadRedirectUserAgents,
     )
 
     private var repositories: Map<String, Repository> = createRepositories(repositoriesSource.get())
