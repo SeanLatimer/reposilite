@@ -21,41 +21,54 @@ import org.junit.jupiter.api.Test
 
 internal class DownloadRedirectPolicyTest {
 
+    private val defaultUserAgents = listOf("curl/", "wget/", "mozilla/")
+
     @Test
     fun `should accept curl`() {
-        assertThat(DownloadRedirectPolicy.accepts("curl/8.4.0")).isTrue
+        assertThat(DownloadRedirectPolicy.accepts("curl/8.4.0", defaultUserAgents)).isTrue
     }
 
     @Test
     fun `should accept wget`() {
-        assertThat(DownloadRedirectPolicy.accepts("Wget/1.21.3 (linux-gnu)")).isTrue
+        assertThat(DownloadRedirectPolicy.accepts("Wget/1.21.3 (linux-gnu)", defaultUserAgents)).isTrue
     }
 
     @Test
     fun `should accept browsers`() {
-        assertThat(DownloadRedirectPolicy.accepts("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36")).isTrue
-        assertThat(DownloadRedirectPolicy.accepts("Mozilla/5.0 (X11; Linux x86_64; rv:127.0) Gecko/20100101 Firefox/127.0")).isTrue
+        assertThat(DownloadRedirectPolicy.accepts("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36", defaultUserAgents)).isTrue
+        assertThat(DownloadRedirectPolicy.accepts("Mozilla/5.0 (X11; Linux x86_64; rv:127.0) Gecko/20100101 Firefox/127.0", defaultUserAgents)).isTrue
     }
 
     @Test
     fun `should accept case-insensitive user agents`() {
-        assertThat(DownloadRedirectPolicy.accepts("CURL/8.4.0")).isTrue
-        assertThat(DownloadRedirectPolicy.accepts("WGET/1.21.3")).isTrue
+        assertThat(DownloadRedirectPolicy.accepts("CURL/8.4.0", defaultUserAgents)).isTrue
+        assertThat(DownloadRedirectPolicy.accepts("WGET/1.21.3", defaultUserAgents)).isTrue
     }
 
     @Test
     fun `should reject build tools with unverified redirect support`() {
-        assertThat(DownloadRedirectPolicy.accepts("Apache-Maven/3.9.9 (Java 17.0.7; Windows 11 10.0)")).isFalse
-        assertThat(DownloadRedirectPolicy.accepts("Gradle/8.9 (Linux 6.5.0; amd64; 17.0.7)")).isFalse
-        assertThat(DownloadRedirectPolicy.accepts("Apache Ivy/2.5.2")).isFalse
+        assertThat(DownloadRedirectPolicy.accepts("Apache-Maven/3.9.9 (Java 17.0.7; Windows 11 10.0)", defaultUserAgents)).isFalse
+        assertThat(DownloadRedirectPolicy.accepts("Gradle/8.9 (Linux 6.5.0; amd64; 17.0.7)", defaultUserAgents)).isFalse
+        assertThat(DownloadRedirectPolicy.accepts("Apache Ivy/2.5.2", defaultUserAgents)).isFalse
     }
 
     @Test
     fun `should reject unknown and missing user agents`() {
-        assertThat(DownloadRedirectPolicy.accepts("JGit/6.9.0")).isFalse
-        assertThat(DownloadRedirectPolicy.accepts("SomeRandomClient/1.0")).isFalse
-        assertThat(DownloadRedirectPolicy.accepts("")).isFalse
-        assertThat(DownloadRedirectPolicy.accepts(null)).isFalse
+        assertThat(DownloadRedirectPolicy.accepts("JGit/6.9.0", defaultUserAgents)).isFalse
+        assertThat(DownloadRedirectPolicy.accepts("SomeRandomClient/1.0", defaultUserAgents)).isFalse
+        assertThat(DownloadRedirectPolicy.accepts("", defaultUserAgents)).isFalse
+        assertThat(DownloadRedirectPolicy.accepts(null, defaultUserAgents)).isFalse
+    }
+
+    @Test
+    fun `should use the configured user agents`() {
+        assertThat(DownloadRedirectPolicy.accepts("MyProbe/1.0", listOf("myprobe/"))).isTrue
+        assertThat(DownloadRedirectPolicy.accepts("curl/8.4.0", listOf("myprobe/"))).isFalse
+    }
+
+    @Test
+    fun `should reject every user agent when the allowlist is empty`() {
+        assertThat(DownloadRedirectPolicy.accepts("curl/8.4.0", listOf())).isFalse
     }
 
 }

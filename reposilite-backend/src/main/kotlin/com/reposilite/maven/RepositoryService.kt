@@ -49,6 +49,7 @@ import panda.std.asSuccess
 import panda.std.ok
 import java.io.InputStream
 import java.net.URI
+import panda.std.reactive.Reference
 
 internal class RepositoryService(
     private val journalist: Journalist,
@@ -58,6 +59,7 @@ internal class RepositoryService(
     private val resolutionProvider: ResolutionProvider,
     private val statisticsFacade: StatisticsFacade,
     private val extensions: Extensions,
+    private val downloadRedirectUserAgents: Reference<List<String>>,
 ) : Journalist {
 
     private val ignoredExtensions = listOf(
@@ -162,7 +164,7 @@ internal class RepositoryService(
                 when {
                     provider is DownloadRedirectProvider
                             && provider.downloadRedirectMode != DownloadRedirectMode.OFF
-                            && (provider.downloadRedirectMode == DownloadRedirectMode.ALWAYS || DownloadRedirectPolicy.accepts(userAgent))
+                            && (provider.downloadRedirectMode == DownloadRedirectMode.ALWAYS || DownloadRedirectPolicy.accepts(userAgent, downloadRedirectUserAgents.get()))
                             && provider.exists(gav) ->
                         provider.getDownloadUrl(gav)
                     else -> notFoundError("Download redirect is not available")

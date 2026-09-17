@@ -91,6 +91,7 @@ internal class MavenComponents(
             statisticsFacade = statisticsFacade,
             extensions = extensions,
             repositorySecurityProvider = securityProvider,
+            downloadRedirectUserAgents = mavenSettings.computed { it.downloadRedirectUserAgents },
             repositoriesSource = mavenSettings.computed { it.repositories }
         )
 
