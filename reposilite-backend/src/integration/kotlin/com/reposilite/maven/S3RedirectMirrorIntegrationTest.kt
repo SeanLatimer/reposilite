@@ -144,6 +144,48 @@ internal abstract class S3RedirectMirrorIntegrationTest : ReposiliteSpecificatio
     }
 
     @Test
+    fun `should refresh mirrored snapshot metadata instead of redirecting stale data`() {
+        // given: a snapshot metadata file cached through the proxied repository
+        val gav = "com/example/lib/1.0-SNAPSHOT"
+        val initialMetadata = """
+            <metadata>
+              <groupId>com.example</groupId>
+              <artifactId>lib</artifactId>
+              <version>1.0-SNAPSHOT</version>
+              <versioning>
+                <snapshot>
+                  <timestamp>20260917.120000</timestamp>
+                  <buildNumber>1</buildNumber>
+                </snapshot>
+              </versioning>
+            </metadata>
+        """.trimIndent()
+        val updatedMetadata = initialMetadata.replace("120000", "120001")
+        useDocument("releases", gav, "maven-metadata.xml", initialMetadata, true)
+        val location = "$gav/maven-metadata.xml".toLocation()
+        val proxiedStorage = mavenFacade.getRepository("proxied")!!.storageProvider
+
+        val initial = client.send(
+            HttpRequest.newBuilder(URI.create("$base/proxied/$gav/maven-metadata.xml")).GET().build(),
+            HttpResponse.BodyHandlers.ofString()
+        )
+        assertThat(initial.body()).isEqualTo(initialMetadata)
+        assertThat(proxiedStorage.exists(location)).isTrue
+
+        // when: upstream receives newer snapshot metadata
+        useDocument("releases", gav, "maven-metadata.xml", updatedMetadata, true)
+        val refreshed = client.send(
+            HttpRequest.newBuilder(URI.create("$base/proxied/$gav/maven-metadata.xml")).GET().build(),
+            HttpResponse.BodyHandlers.ofString()
+        )
+
+        // then: the metadata freshness policy streams and caches the updated copy instead of redirecting stale data
+        assertThat(refreshed.statusCode()).isEqualTo(200)
+        assertThat(refreshed.headers().firstValue("Location")).isEmpty
+        assertThat(refreshed.body()).isEqualTo(updatedMetadata)
+    }
+
+    @Test
     fun `should not fetch mirror artifacts for head probes`() {
         // given: an artifact available only from the upstream repository
         val (_, gav, file, content) = useDocument("releases", "com/example", "probe.jar", "probe-content", true)

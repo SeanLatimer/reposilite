@@ -165,6 +165,7 @@ internal class RepositoryService(
                     provider is DownloadRedirectProvider
                             && provider.downloadRedirectMode != DownloadRedirectMode.OFF
                             && (provider.downloadRedirectMode == DownloadRedirectMode.ALWAYS || DownloadRedirectPolicy.accepts(userAgent, downloadRedirectUserAgents.get()))
+                            && !mirrorService.shouldPrioritizeMirrorRepository(repository, gav)
                             && provider.exists(gav) ->
                         provider.getDownloadUrl(gav)
                     else -> notFoundError("Download redirect is not available")
