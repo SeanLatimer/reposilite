@@ -35,6 +35,7 @@ import io.javalin.community.routing.Route.HEAD
 import io.javalin.community.routing.Route.POST
 import io.javalin.community.routing.Route.PUT
 import io.javalin.http.Context
+import io.javalin.http.HandlerType
 import io.javalin.openapi.ContentType.FORM_DATA_MULTIPART
 import io.javalin.http.Header
 import io.javalin.openapi.HttpMethod
@@ -85,15 +86,20 @@ internal class MavenEndpoints(
         return allDetails.flatMap { details ->
             when (details) {
                 is DocumentInfo ->
-                    mavenFacade.findDownloadUrl(request, ctx.userAgent())
-                        .fold(
-                            { url ->
-                                ctx.header(Header.CACHE_CONTROL, "no-store")
-                                ctx.redirect(url.toString())
-                                Unit.asSuccess()
-                            },
-                            { streamFile(ctx, request, details) }
-                        )
+                    when (ctx.method()) {
+                        HandlerType.GET ->
+                            mavenFacade.findDownloadUrl(request, ctx.userAgent())
+                                .fold(
+                                    { url ->
+                                        ctx.header(Header.CACHE_CONTROL, "no-store")
+                                        ctx.redirect(url.toString())
+                                        Unit.asSuccess()
+                                    },
+                                    { streamFile(ctx, request, details) }
+                                )
+                        else ->
+                            streamFile(ctx, request, details)
+                    }
                 is DirectoryInfo -> {
                     ctx.html(
                         createDirectoryIndexPage(
