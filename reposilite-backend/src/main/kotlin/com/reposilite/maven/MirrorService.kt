@@ -48,6 +48,7 @@ internal class MirrorService(
     private val failureFacade: FailureFacade,
     private val clock: Clock,
     private val ioService: ExecutorService,
+    private val onStored: (Repository, Location) -> Unit = { _, _ -> },
 ) : Journalist {
 
     private data class FetchKey(
@@ -158,15 +159,18 @@ internal class MirrorService(
         searchInRemoteRepositories(repository, gav, accessToken, hosts) { (host, config, client) ->
             client
                 .get("${host.removeSuffix("/")}/$gav", config.authorization, config.connectTimeout, config.readTimeout)
-                .flatMap { data -> repository.storageProvider.putFile(gav, data) }
+                .flatMap { data -> store(repository, gav, data) }
                 .mapErr { error -> error.updateMessage { "$host: $it" } }
         }
 
     private fun storeFile(repository: Repository, gav: Location, data: InputStream): Result<InputStream, ErrorResponse> =
-        repository
-            .storageProvider
-            .putFile(gav, data)
+        store(repository, gav, data)
             .flatMap { repository.storageProvider.getFile(gav) }
+
+    private fun store(repository: Repository, gav: Location, data: InputStream): Result<Unit, ErrorResponse> =
+        repository.storageProvider
+            .putFile(gav, data)
+            .peek { onStored(repository, gav) }
 
     private fun <V> searchInRemoteRepositories(
         repository: Repository,

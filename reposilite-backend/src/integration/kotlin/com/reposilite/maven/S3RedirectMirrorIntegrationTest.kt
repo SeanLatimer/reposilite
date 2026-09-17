@@ -82,10 +82,17 @@ internal abstract class S3RedirectMirrorIntegrationTest : ReposiliteSpecificatio
             old.copy(
                 repositories = old.repositories.associateBy { it.id }.toMutableMap()
                     .also { repositories ->
-                        repositories["releases"] = repositories.getValue("releases").copy(storageProvider = redirectSettings())
+                        repositories["releases"] = repositories.getValue("releases").copy(storageProvider = redirectSettings(), preserveSnapshots = true)
                         repositories["proxied"] = RepositorySettings(
                             id = "proxied",
                             redeployment = true,
+                            storageProvider = redirectSettings(),
+                            proxied = listOf(MirroredRepositorySettings(reference = "releases", store = true)),
+                        )
+                        repositories["proxied-preserved"] = RepositorySettings(
+                            id = "proxied-preserved",
+                            redeployment = true,
+                            preserveSnapshots = true,
                             storageProvider = redirectSettings(),
                             proxied = listOf(MirroredRepositorySettings(reference = "releases", store = true)),
                         )
@@ -186,6 +193,63 @@ internal abstract class S3RedirectMirrorIntegrationTest : ReposiliteSpecificatio
     }
 
     @Test
+    fun `should remove superseded mirrored snapshot builds`() {
+        val gav = "com/example/lib/1.0-SNAPSHOT"
+        val firstTimestamp = "20260917.120000"
+        val secondTimestamp = "20260917.120001"
+        val firstFile = "lib-1.0-$firstTimestamp-1.jar"
+        val secondFile = "lib-1.0-$secondTimestamp-2.jar"
+        val proxiedStorage = mavenFacade.getRepository("proxied")!!.storageProvider
+
+        // given: the proxy has cached an earlier snapshot build and its metadata
+        useDocument("releases", gav, firstFile, "first-build", true)
+        useDocument("releases", gav, "maven-metadata.xml", snapshotMetadata(firstTimestamp, 1), true)
+        get("$base/proxied/$gav/maven-metadata.xml")
+        get("$base/proxied/$gav/$firstFile")
+        assertThat(proxiedStorage.exists("$gav/$firstFile".toLocation())).isTrue
+
+        // when: upstream publishes a newer snapshot build and metadata refreshes through the proxy
+        useDocument("releases", gav, secondFile, "second-build", true)
+        useDocument("releases", gav, "maven-metadata.xml", snapshotMetadata(secondTimestamp, 2), true)
+        get("$base/proxied/$gav/maven-metadata.xml")
+
+        // then: the asynchronous retention task removes only the obsolete proxied build
+        var attempts = 0
+        while (proxiedStorage.exists("$gav/$firstFile".toLocation()) && attempts++ < 50) {
+            Thread.sleep(20)
+        }
+        assertThat(proxiedStorage.exists("$gav/$firstFile".toLocation())).isFalse
+        assertThat(mavenFacade.getRepository("releases")!!.storageProvider.exists("$gav/$firstFile".toLocation())).isTrue
+        assertThat(get("$base/proxied/$gav/$secondFile").body()).isEqualTo("second-build")
+    }
+
+    @Test
+    fun `should preserve mirrored snapshot builds when configured`() {
+        val gav = "com/example/lib/1.0-SNAPSHOT"
+        val firstTimestamp = "20260917.120000"
+        val secondTimestamp = "20260917.120001"
+        val firstFile = "lib-1.0-$firstTimestamp-1.jar"
+        val secondFile = "lib-1.0-$secondTimestamp-2.jar"
+        val proxiedStorage = mavenFacade.getRepository("proxied-preserved")!!.storageProvider
+
+        // given: snapshot retention is disabled for the proxy
+        useDocument("releases", gav, firstFile, "first-build", true)
+        useDocument("releases", gav, "maven-metadata.xml", snapshotMetadata(firstTimestamp, 1), true)
+        get("$base/proxied-preserved/$gav/maven-metadata.xml")
+        get("$base/proxied-preserved/$gav/$firstFile")
+        assertThat(proxiedStorage.exists("$gav/$firstFile".toLocation())).isTrue
+
+        // when: upstream publishes a newer snapshot build and metadata
+        useDocument("releases", gav, secondFile, "second-build", true)
+        useDocument("releases", gav, "maven-metadata.xml", snapshotMetadata(secondTimestamp, 2), true)
+        get("$base/proxied-preserved/$gav/maven-metadata.xml")
+
+        // then: the earlier build remains cached
+        Thread.sleep(100)
+        assertThat(proxiedStorage.exists("$gav/$firstFile".toLocation())).isTrue
+    }
+
+    @Test
     fun `should not fetch mirror artifacts for head probes`() {
         // given: an artifact available only from the upstream repository
         val (_, gav, file, content) = useDocument("releases", "com/example", "probe.jar", "probe-content", true)
@@ -214,5 +278,26 @@ internal abstract class S3RedirectMirrorIntegrationTest : ReposiliteSpecificatio
         assertThat(get.body()).isEqualTo(content)
         assertThat(proxiedStorage.exists(location)).isTrue
     }
+
+    private fun snapshotMetadata(timestamp: String, buildNumber: Int): String =
+        """
+            <metadata>
+              <groupId>com.example</groupId>
+              <artifactId>lib</artifactId>
+              <version>1.0-SNAPSHOT</version>
+              <versioning>
+                <snapshot>
+                  <timestamp>$timestamp</timestamp>
+                  <buildNumber>$buildNumber</buildNumber>
+                </snapshot>
+              </versioning>
+            </metadata>
+        """.trimIndent()
+
+    private fun get(uri: String): HttpResponse<String> =
+        client.send(
+            HttpRequest.newBuilder(URI.create(uri)).GET().build(),
+            HttpResponse.BodyHandlers.ofString()
+        )
 
 }

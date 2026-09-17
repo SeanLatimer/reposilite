@@ -21,6 +21,7 @@ import com.reposilite.configuration.shared.SharedConfigurationFacade
 import com.reposilite.console.api.CommandsSetupEvent
 import com.reposilite.frontend.application.FrontendSettings
 import com.reposilite.maven.MavenFacade
+import com.reposilite.maven.MirroredSnapshotRetentionListener
 import com.reposilite.maven.PreservedBuildsListener
 import com.reposilite.maven.infrastructure.CacheCommand
 import com.reposilite.maven.infrastructure.MavenApiEndpoints
@@ -38,6 +39,7 @@ import com.reposilite.plugin.parameters
 import com.reposilite.plugin.reposilite
 import com.reposilite.web.api.RoutingSetupEvent
 import java.time.Clock
+import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
 @Plugin(
@@ -80,6 +82,8 @@ internal class MavenPlugin : ReposilitePlugin() {
         }
 
         event(PreservedBuildsListener(mavenFacade))
+        val mirroredSnapshotRetentionExecutor = Executors.newSingleThreadExecutor()
+        event(MirroredSnapshotRetentionListener(mavenFacade, mirroredSnapshotRetentionExecutor))
 
         event { event: CommandsSetupEvent ->
             event.registerCommand(CacheCommand(mavenFacade))
@@ -100,6 +104,7 @@ internal class MavenPlugin : ReposilitePlugin() {
 
         event { _: ReposiliteDisposeEvent ->
             scheduledReconciliation.cancel(false)
+            mirroredSnapshotRetentionExecutor.shutdownNow()
             mavenFacade.getRepositories().forEach {
                 it.shutdown()
             }

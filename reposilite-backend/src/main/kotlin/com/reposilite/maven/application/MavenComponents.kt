@@ -26,6 +26,7 @@ import com.reposilite.maven.MirrorService
 import com.reposilite.maven.ResolutionProvider
 import com.reposilite.maven.RepositoryProvider
 import com.reposilite.maven.RepositorySecurityProvider
+import com.reposilite.maven.api.MirrorStoredEvent
 import com.reposilite.maven.index.ArtifactIndexDatabase
 import com.reposilite.plugin.Extensions
 import com.reposilite.plugin.api.PluginComponents
@@ -68,6 +69,7 @@ internal class MavenComponents(
             failureFacade = failureFacade,
             clock = clock,
             ioService = ioService,
+            onStored = { repository, gav -> extensions.emitEvent(MirrorStoredEvent(repository, gav)) },
         )
 
     private fun resolutionProvider(): ResolutionProvider =
