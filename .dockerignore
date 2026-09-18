@@ -3,6 +3,11 @@ build/
 .idea/
 .gradle/
 .kotlin/
+**/build/
+**/.gradle/
+**/.kotlin/
+**/node_modules/
+fork-test/
 
 # Dockerfile related files do not need to be included
 Dockerfile
