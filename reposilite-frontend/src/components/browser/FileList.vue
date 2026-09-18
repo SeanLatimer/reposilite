@@ -50,9 +50,10 @@ const { client } = useSession()
 const downloadHandler = (path, name) => {
   client.value.maven.download(path.substring(1) + '/' + name)
     .then(response => download(response.data, name, response.headers['content-type']))
-    .catch(error => createToast(`Cannot download file - ${error.response.status}: ${error.response.data.message}`, {
-      type: 'danger'
-    }))
+    .catch(error => {
+      const status = error?.response?.status
+      createToast(`Cannot download file - ${status ?? 'network error'}`, { type: 'danger' })
+    })
 }
 
 const deleteModalValue = ref()

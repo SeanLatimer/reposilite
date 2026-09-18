@@ -120,6 +120,25 @@ internal abstract class S3DownloadRedirectIntegrationTest : ReposiliteSpecificat
     }
 
     @Test
+    fun `should redirect plus-versioned documents to client-safe presigned urls`() {
+        // given: a document with client-unsafe characters in its coordinates
+        val (repository, gav, file, content) = useDocument("releases", "com/example/lib/1.0.1+1.21.1", "lib-1.0.1+1.21.1.pom", "plus-content", true)
+
+        // when: a redirect-capable client like Gradle requests the document
+        val response = get("$base/$repository/$gav/$file", userAgent = "Gradle/9.7.1")
+
+        // then: the presigned URL path only contains characters that survive client URL round-trips
+        assertThat(response.statusCode()).isEqualTo(302)
+
+        val location = response.headers().firstValue("Location").orElseThrow()
+        assertThat(location).contains("~2b")
+        assertThat(URI.create(location).rawPath).doesNotContain("%2B")
+
+        // and: the presigned URL serves the original content without further authentication
+        assertThat(follow(location).body()).isEqualTo(content)
+    }
+
+    @Test
     fun `should redirect only capable clients in auto mode`() {
         // given: a document deployed to a repository with AUTO redirect mode
         val (repository, gav, file, content) = useDocument("redirect-auto", "com/example", "auto.jar", "auto-content", true)
