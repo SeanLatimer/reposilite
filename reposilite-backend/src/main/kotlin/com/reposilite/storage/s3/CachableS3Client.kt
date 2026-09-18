@@ -26,7 +26,6 @@ import software.amazon.awssdk.services.s3.model.HeadObjectRequest
 import software.amazon.awssdk.services.s3.model.HeadObjectResponse
 import software.amazon.awssdk.services.s3.model.PutObjectRequest
 import software.amazon.awssdk.services.s3.model.PutObjectResponse
-import java.nio.file.Path
 
 /**
  * This S3 clients caches head object requests
@@ -59,11 +58,24 @@ class CachableS3Client : DelegatingS3Client {
     private fun invalidate(s3Key: String) {
         cache.invalidate(s3Key)
         // If a new object has been written, we also want to invalidate the cache for its maven-metadata.xml file.
-        // We don't look for special suffix, we just go blindly one level up and invalidate the maven-metadata.xml file.
+        // We don't look for special suffix, we just go blindly two levels up and invalidate the maven-metadata.xml file.
         // When in doubt, we invalidate the cache a bit too often, but it keeps the logic simple and more robust
-        Path.of(s3Key).parent?.parent?.let { parentPath ->
-            val metadataKey = parentPath.resolve("maven-metadata.xml").toString()
-            cache.asMap().keys.removeIf { s -> s.startsWith(metadataKey) }
+        val metadataKey = metadataKeyTwoLevelsAbove(s3Key)
+        cache.asMap().keys.removeIf { s -> metadataKey != null && s.startsWith(metadataKey) }
+    }
+
+    private fun metadataKeyTwoLevelsAbove(s3Key: String): String? {
+        val directorySeparator = s3Key.lastIndexOf('/')
+
+        if (directorySeparator < 0) {
+            return null
+        }
+
+        val grandparent = s3Key.substring(0, directorySeparator).substringBeforeLast('/', "")
+
+        return when {
+            grandparent.isEmpty() -> null
+            else -> "$grandparent/maven-metadata.xml"
         }
     }
 }
