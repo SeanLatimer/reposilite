@@ -216,6 +216,23 @@ internal class S3StorageProviderIntegrationTest : StorageProviderIntegrationTest
         assertThat(restarted.exists("/lib-1.0~2b1.pom".toLocation())).isFalse
     }
 
+    @Test
+    fun `should restore keys encoded several times and keep the newest copy`() {
+        // given: a key re-encoded on several restarts, and a later redeploy under a single encoded layer
+        val writer = storageProvider(repository = "legacy-layers")
+        assertOk(writer.putFile("/0.1.1~7e7e7e7e7e2b1.21.1/devsession-0.1.1~7e7e7e7e7e2b1.21.1.pom".toLocation(), "old".byteInputStream()))
+        Thread.sleep(1100) // S3 modification times have second precision
+        assertOk(writer.putFile("/0.1.1~2b1.21.1/devsession-0.1.1~2b1.21.1.pom".toLocation(), "new".byteInputStream()))
+
+        // when: the repository starts once
+        val restarted = storageProvider(repository = "legacy-layers")
+
+        // then: every layer is removed in a single start, the newest copy wins, and no encoded copies remain
+        assertThat(String(assertOk(restarted.getFile("/0.1.1+1.21.1/devsession-0.1.1+1.21.1.pom".toLocation())).readBytes())).isEqualTo("new")
+        assertThat(restarted.exists("/0.1.1~7e7e7e7e7e2b1.21.1".toLocation())).isFalse
+        assertThat(restarted.exists("/0.1.1~2b1.21.1".toLocation())).isFalse
+    }
+
     private fun storageProvider(repository: String, prefix: String = "reposilite", sharedBucket: Boolean = true): StorageProvider {
         val logger = InMemoryLogger()
         return StorageFacade().createStorageProvider(

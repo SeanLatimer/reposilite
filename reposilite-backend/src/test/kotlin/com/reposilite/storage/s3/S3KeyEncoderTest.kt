@@ -90,4 +90,14 @@ internal class S3KeyEncoderTest {
         assertThat(S3KeyEncoder.decodeLegacy("a+b~2b")).isNull() // a raw '+' means the key was never encoded
     }
 
+    @Test
+    fun `should decode every layer of keys re-encoded on each restart`() {
+        // devsession's version folder after six starts of the release that re-encoded its own escapes
+        val key = "releases/dev/example/devsession/0.1.1~7e7e7e7e7e2b1.21.1/devsession-0.1.1~7e7e7e7e7e2b1.21.1.pom"
+
+        assertThat(S3KeyEncoder.decodeLegacy(key)).isEqualTo("releases/dev/example/devsession/0.1.1+1.21.1/devsession-0.1.1+1.21.1.pom")
+        assertThat(S3KeyEncoder.decodeLegacy("a~7e7e2b")).isEqualTo("a+")
+        assertThat(S3KeyEncoder.decodeLegacy("a~7e7e")).isEqualTo("a~") // layers stop once a decode is no longer canonical
+    }
+
 }

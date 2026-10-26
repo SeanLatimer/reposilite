@@ -93,7 +93,8 @@ class S3StorageProvider(
     /**
      * A previous fork release stored keys in an encoded, client-safe form (see [S3KeyEncoder]).
      * Rename such objects back to their raw keys, so the bucket stays readable by upstream Reposilite.
-     * Objects are copied server-side; if the raw key already exists and is newer, it is kept.
+     * Objects are copied server-side. When several objects map to the same raw key (one per encoding
+     * layer, or a raw copy written after a rollback), the most recently modified one is kept.
      */
     private fun migrateLegacyKeys() {
         try {
@@ -108,20 +109,22 @@ class S3StorageProvider(
 
             val existing = objects.associateBy { it.key() }
 
-            val legacyObjects = objects
-                .mapNotNull { obj -> S3KeyEncoder.decodeLegacy(obj.key())?.let { obj to it } }
+            val legacyObjectsByRawKey = objects
+                .mapNotNull { obj -> S3KeyEncoder.decodeLegacy(obj.key())?.let { rawKey -> rawKey to obj } }
+                .groupBy({ it.first }, { it.second })
 
-            if (legacyObjects.isNotEmpty()) {
-                getLogger().info("S3 | Restoring raw keys of ${legacyObjects.size} object(s) stored in the encoded form")
+            if (legacyObjectsByRawKey.isNotEmpty()) {
+                getLogger().info("S3 | Restoring raw keys of ${legacyObjectsByRawKey.values.sumOf { it.size }} object(s) stored in the encoded form")
 
-                legacyObjects.forEach { (obj, rawKey) ->
+                legacyObjectsByRawKey.forEach { (rawKey, legacyObjects) ->
+                    val newest = legacyObjects.maxBy { it.lastModified() }
                     // the raw key may have been written again, e.g. by upstream Reposilite after a rollback
-                    val rawIsNewer = existing[rawKey]?.lastModified()?.let { it >= obj.lastModified() } ?: false
+                    val rawIsNewer = existing[rawKey]?.lastModified()?.let { it >= newest.lastModified() } ?: false
 
                     if (!rawIsNewer) {
                         val copyRequest = CopyObjectRequest.builder()
                             .sourceBucket(bucket)
-                            .sourceKey(obj.key())
+                            .sourceKey(newest.key())
                             .destinationBucket(bucket)
                             .destinationKey(rawKey)
                             .build()
@@ -129,7 +132,7 @@ class S3StorageProvider(
                         s3.copyObject(copyRequest)
                     }
 
-                    s3.deleteObject(createDeleteRequest(obj.key()))
+                    legacyObjects.forEach { s3.deleteObject(createDeleteRequest(it.key())) }
                 }
             }
         } catch (exception: Exception) {

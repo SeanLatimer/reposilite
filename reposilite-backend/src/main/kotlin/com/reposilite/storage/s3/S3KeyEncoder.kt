@@ -27,8 +27,9 @@ package com.reposilite.storage.s3
  *
  * Objects are stored under their raw keys, matching upstream Reposilite. A previous fork release
  * stored keys in an encoded form, where every byte outside of [SAFE_CHARACTERS] became `~xx`
- * (the lowercase hex of the UTF-8 byte, e.g. `+` became `~2b`). [decodeLegacy] recognizes such
- * keys so they can be migrated back.
+ * (the lowercase hex of the UTF-8 byte, e.g. `+` became `~2b`). That release also re-encoded
+ * its own `~` escapes on every restart, so a key may hold several layers (`~7e7e2b` after three
+ * starts). [decodeLegacy] recognizes such keys so they can be migrated back.
  */
 internal object S3KeyEncoder {
 
@@ -41,9 +42,15 @@ internal object S3KeyEncoder {
 
     /**
      * Returns the raw key of a key written in the legacy encoded form, or null if [key] is not one.
-     * Only canonical encoder output is accepted, so raw keys that merely contain `~` are left alone.
+     * Every encoded layer is removed. Only canonical encoder output is accepted at each layer,
+     * so raw keys that merely contain `~` are left alone.
      */
     fun decodeLegacy(key: String): String? =
+        generateSequence(key) { decodeLayer(it) }
+            .last()
+            .takeIf { it != key }
+
+    private fun decodeLayer(key: String): String? =
         decode(key)
             .takeIf { it != key && encode(it) == key }
 
