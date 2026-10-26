@@ -41,6 +41,9 @@ internal class FakeStorageProvider : StorageProvider, FullListingProvider {
         private set
     var headCalls = 0
         private set
+    var fullListings = 0
+        private set
+    override var listingChangedAtStartup = false
 
     fun put(key: String, size: Long = 1, lastModifiedTime: Instant? = null) {
         objects[key] = ListedObject(key, size, lastModifiedTime)
@@ -141,7 +144,9 @@ internal class FakeStorageProvider : StorageProvider, FullListingProvider {
     override fun canHold(contentLength: Long): Result<Long, ErrorResponse> =
         Long.MAX_VALUE.asSuccess()
 
-    override fun listAllObjects(): Result<List<ListedObject>, ErrorResponse> =
-        objects.values.toList().asSuccess()
+    override fun listAllObjects(): Result<List<ListedObject>, ErrorResponse> {
+        fullListings++
+        return objects.values.toList().asSuccess()
+    }
 
 }

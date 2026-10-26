@@ -198,6 +198,11 @@ internal class S3StorageProviderIntegrationTest : StorageProviderIntegrationTest
 
         // and: keys the old encoder could never have produced are left alone
         assertThat(restarted.exists("/com/example/lib~41.txt".toLocation())).isTrue
+
+        // and: the provider reports that its listing changed, so a listing index gets rebuilt
+        assertThat((writer as FullListingProvider).listingChangedAtStartup).isFalse
+        assertThat((restarted as FullListingProvider).listingChangedAtStartup).isTrue
+        assertThat((storageProvider(repository = "legacy-keys") as FullListingProvider).listingChangedAtStartup).isFalse
     }
 
     @Test

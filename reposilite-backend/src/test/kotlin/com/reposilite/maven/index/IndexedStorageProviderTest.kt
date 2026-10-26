@@ -34,11 +34,15 @@ internal class IndexedStorageProviderTest {
 
     private val fixedClock = Clock.fixed(Instant.parse("2026-01-01T12:00:00Z"), ZoneOffset.UTC)
 
-    private fun provider(settings: S3IndexSettings = S3IndexSettings(enabled = true), storage: FakeStorageProvider = FakeStorageProvider()): IndexedStorageProvider =
+    private fun provider(
+        settings: S3IndexSettings = S3IndexSettings(enabled = true),
+        storage: FakeStorageProvider = FakeStorageProvider(),
+        index: ArtifactIndexRepository = InMemoryArtifactIndexRepository(),
+    ): IndexedStorageProvider =
         IndexedStorageProvider(
             journalist = InMemoryLogger(),
             delegate = storage,
-            index = InMemoryArtifactIndexRepository(),
+            index = index,
             repository = "releases",
             settings = settings,
             clock = fixedClock,
@@ -126,6 +130,39 @@ internal class IndexedStorageProviderTest {
 
         assertError(provider.getFileDetails("com/example".toLocation()))
         assertThat(storage.listCalls).isEqualTo(1)
+    }
+
+    @Test
+    fun `should rebuild the index on startup when storage renamed objects while starting`() {
+        // given: an index reconciled while keys were still stored in the legacy encoded form
+        val index = InMemoryArtifactIndexRepository()
+        val legacy = FakeStorageProvider()
+        legacy.put("dev/lib/0.1.1~7e2b1/lib-0.1.1~7e2b1.pom")
+        assertOk(provider(storage = legacy, index = index).reconcile())
+
+        // when: the repository starts again after storage restored the raw keys
+        val restored = FakeStorageProvider()
+        restored.put("dev/lib/0.1.1+1/lib-0.1.1+1.pom")
+        restored.listingChangedAtStartup = true
+        val provider = provider(storage = restored, index = index)
+
+        // then: the index was rebuilt before serving, so it lists the raw keys only
+        assertThat(restored.fullListings).isEqualTo(1)
+        val listing = assertOk(provider.getFileDetails("dev/lib".toLocation())) as DirectoryInfo
+        assertThat(listing.files.map { it.name }).containsExactly("0.1.1+1")
+        assertError(provider.getFileDetails("dev/lib/0.1.1~7e2b1".toLocation()))
+    }
+
+    @Test
+    fun `should keep the existing index when storage did not change while starting`() {
+        val index = InMemoryArtifactIndexRepository()
+        val storage = FakeStorageProvider()
+        storage.put("com/example/lib.jar")
+        assertOk(provider(storage = storage, index = index).reconcile())
+
+        provider(storage = storage, index = index)
+
+        assertThat(storage.fullListings).isEqualTo(1)
     }
 
     @Test

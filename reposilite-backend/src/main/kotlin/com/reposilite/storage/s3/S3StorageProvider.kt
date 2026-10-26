@@ -80,6 +80,10 @@ class S3StorageProvider(
     private val downloadRedirectValidity: Duration = Duration.ofSeconds(300),
 ) : StorageProvider, DownloadRedirectProvider, FullListingProvider, Journalist {
 
+    // declared before init, so the migration's update isn't overwritten by this initializer
+    override var listingChangedAtStartup: Boolean = false
+        private set
+
     init {
         if (!skipBucketCreation) {
             createBucketIfNotExists()
@@ -134,6 +138,8 @@ class S3StorageProvider(
 
                     legacyObjects.forEach { s3.deleteObject(createDeleteRequest(it.key())) }
                 }
+
+                listingChangedAtStartup = true
             }
         } catch (exception: Exception) {
             throw IllegalStateException("Failed to restore raw S3 object keys", exception)
