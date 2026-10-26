@@ -64,6 +64,9 @@ internal class IndexedStorageProvider(
     override val downloadRedirectMode: DownloadRedirectMode
         get() = (delegate as? DownloadRedirectProvider)?.downloadRedirectMode ?: DownloadRedirectMode.OFF
 
+    override fun supportsDownloadRedirect(location: Location): Boolean =
+        (delegate as? DownloadRedirectProvider)?.supportsDownloadRedirect(location) ?: false
+
     override fun getDownloadUrl(location: Location): Result<URI, ErrorResponse> {
         val redirectProvider = delegate as? DownloadRedirectProvider
             ?: return internalServerError("Storage provider '${delegate.javaClass.simpleName}' does not support download redirects")

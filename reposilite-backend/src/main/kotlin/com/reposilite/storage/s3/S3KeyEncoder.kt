@@ -17,23 +17,35 @@
 package com.reposilite.storage.s3
 
 /**
- * Encodes S3 object keys into a client-safe form.
+ * Client-safe form of S3 object keys.
  *
  * Presigned download URLs sign the exact key, percent-encoded. HTTP clients like Gradle
  * decode characters such as `+` when following redirect Location paths, which invalidates
  * the signature (some providers canonicalize a raw `+` in the path as an encoded space).
- * To keep presigned redirects followable by every client, physical keys only contain
- * characters that survive URL round-trips verbatim.
+ * Keys made only of [SAFE_CHARACTERS] survive URL round-trips verbatim and can be redirected;
+ * any other key is streamed through Reposilite instead.
  *
- * Every byte outside of [SAFE_CHARACTERS] is stored as `~xx`, where `xx` is the lowercase
- * hex representation of the UTF-8 byte (e.g. `+` becomes `~2b`, `~` itself `~7e`).
- * The encoding is injective and prefix-stable: `encode(prefix + key)` starts with `encode(prefix)`.
+ * Objects are stored under their raw keys, matching upstream Reposilite. A previous fork release
+ * stored keys in an encoded form, where every byte outside of [SAFE_CHARACTERS] became `~xx`
+ * (the lowercase hex of the UTF-8 byte, e.g. `+` became `~2b`). [decodeLegacy] recognizes such
+ * keys so they can be migrated back.
  */
 internal object S3KeyEncoder {
 
     private const val ESCAPE = '~'
     private const val HEX = "0123456789abcdef"
     private val SAFE_CHARACTERS = ('a'..'z') + ('A'..'Z') + ('0'..'9') + listOf('.', '/', '_', '-')
+
+    fun isClientSafe(key: String): Boolean =
+        key.all { it in SAFE_CHARACTERS }
+
+    /**
+     * Returns the raw key of a key written in the legacy encoded form, or null if [key] is not one.
+     * Only canonical encoder output is accepted, so raw keys that merely contain `~` are left alone.
+     */
+    fun decodeLegacy(key: String): String? =
+        decode(key)
+            .takeIf { it != key && encode(it) == key }
 
     fun encode(key: String): String =
         buildString {
@@ -52,8 +64,7 @@ internal object S3KeyEncoder {
         }
 
     /**
-     * Reverses [encode]. Malformed input (raw keys never produced by this encoder)
-     * is returned unchanged, so unencoded keys keep resolving until migrated.
+     * Reverses [encode]. Malformed input (raw keys never produced by this encoder) is returned unchanged.
      */
     fun decode(key: String): String {
         if (ESCAPE !in key) {

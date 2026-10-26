@@ -71,4 +71,23 @@ internal class S3KeyEncoderTest {
         assertThat(S3KeyEncoder.decode("a~d0~b")).isEqualTo("a~d0~b")
     }
 
+    @Test
+    fun `should detect client-safe keys`() {
+        assertThat(S3KeyEncoder.isClientSafe("releases/com/example/lib/1.0.0/lib-1.0.0.jar")).isTrue
+        assertThat(S3KeyEncoder.isClientSafe("releases/com/example/lib/1.0.1+1.21.1/lib.pom")).isFalse
+        assertThat(S3KeyEncoder.isClientSafe("releases/file name.txt")).isFalse
+        assertThat(S3KeyEncoder.isClientSafe("releases/информация.txt")).isFalse
+    }
+
+    @Test
+    fun `should decode canonical legacy keys only`() {
+        assertThat(S3KeyEncoder.decodeLegacy("lib-1.0.1~2b1.21.1.pom")).isEqualTo("lib-1.0.1+1.21.1.pom")
+        assertThat(S3KeyEncoder.decodeLegacy("a~7eb")).isEqualTo("a~b")
+        assertThat(S3KeyEncoder.decodeLegacy("lib-1.0.0.jar")).isNull()
+        assertThat(S3KeyEncoder.decodeLegacy("a~41")).isNull() // 'A' is safe, so the encoder never escaped it
+        assertThat(S3KeyEncoder.decodeLegacy("a~2B")).isNull() // the encoder only wrote lowercase hex
+        assertThat(S3KeyEncoder.decodeLegacy("a~zz")).isNull()
+        assertThat(S3KeyEncoder.decodeLegacy("a+b~2b")).isNull() // a raw '+' means the key was never encoded
+    }
+
 }

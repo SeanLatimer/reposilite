@@ -153,6 +153,8 @@ class S3StorageProviderFactory : StorageProviderFactory<S3StorageProvider, S3Sto
                 downloadRedirectValidity = Duration.ofSeconds(settings.downloadRedirectValiditySeconds.coerceAtLeast(1))
             )
         } catch (exception: Exception) {
+            s3Client.close()
+            presigner?.close()
             failureFacade.logger.error("Cannot connect to S3 storage provider: ${exception.message}")
             failureFacade.logger.error("S3 storage provider configuration:")
             failureFacade.logger.error("  - Bucket: ${settings.bucketName}")
