@@ -1,11 +1,7 @@
 # syntax=docker.io/docker/dockerfile:1
 
 # Build stage
-FROM eclipse-temurin:21-jdk-noble AS build
-COPY docker/security/blocked.certs /tmp/blocked.certs
-RUN cat "$JAVA_HOME/lib/security/blocked.certs" >> /tmp/blocked.certs \
-    && sort -u /tmp/blocked.certs -o "$JAVA_HOME/lib/security/blocked.certs" \
-    && rm /tmp/blocked.certs
+FROM eclipse-temurin:25-jdk-noble AS build
 COPY --exclude=entrypoint.sh . /home/reposilite-build
 WORKDIR /home/reposilite-build
 
@@ -30,11 +26,7 @@ LABEL org.label-schema.build-date=$BUILD_DATE \
       org.label-schema.schema-version="1.0"
 
 # Run stage
-FROM eclipse-temurin:21-jre-noble AS run
-COPY docker/security/blocked.certs /tmp/blocked.certs
-RUN cat "$JAVA_HOME/lib/security/blocked.certs" >> /tmp/blocked.certs \
-    && sort -u /tmp/blocked.certs -o "$JAVA_HOME/lib/security/blocked.certs" \
-    && rm /tmp/blocked.certs
+FROM eclipse-temurin:25-jre-noble AS run
 
 # Setup runtime environment
 RUN mkdir -p /app/data && mkdir -p /var/log/reposilite

@@ -25,12 +25,20 @@ case "$REPOSILITE_OPTS" in
   *                      ) REPOSILITE_ARGS="--working-directory=/app/data $REPOSILITE_ARGS";;
 esac
 
+# Serial GC saves ~45 MB RSS over G1 at the same heap; JAVA_OPTS that pick a collector take precedence
+DEFAULT_JAVA_OPTS=""
+case "$JAVA_OPTS" in
+  *"-XX:+Use"*"GC"*) ;;
+  *                ) DEFAULT_JAVA_OPTS="-XX:+UseSerialGC";;
+esac
+
 # GH-1762: support for running as non-root user
 
 if [ "$(id -u)" != 0 ]; then
   exec java \
        -Dtinylog.writerFile.file="/var/log/reposilite/log_{date}.txt" \
        -Dtinylog.writerFile.latest=/var/log/reposilite/latest.log \
+       $DEFAULT_JAVA_OPTS \
        $JAVA_OPTS \
        -jar reposilite.jar \
        $REPOSILITE_ARGS
@@ -71,6 +79,7 @@ else
     java \
        -Dtinylog.writerFile.file="/var/log/reposilite/log_{date}.txt" \
        -Dtinylog.writerFile.latest=/var/log/reposilite/latest.log \
+       $DEFAULT_JAVA_OPTS \
        $JAVA_OPTS \
        -jar reposilite.jar \
        $REPOSILITE_ARGS
