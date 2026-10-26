@@ -180,6 +180,42 @@ internal class S3StorageProviderIntegrationTest : StorageProviderIntegrationTest
         assertThat(root.exists(artifact)).isFalse
     }
 
+    @Test
+    fun `should restore raw keys of objects stored in the legacy encoded form on startup`() {
+        // given: objects written by the fork release that stored keys as '~xx' escapes
+        val writer = storageProvider(repository = "legacy-keys")
+        assertOk(writer.putFile("/com/example/1.0~2b1/lib-1.0~2b1.pom".toLocation(), "legacy".byteInputStream()))
+        assertOk(writer.putFile("/com/example/lib~7eraw.txt".toLocation(), "tilde".byteInputStream()))
+        assertOk(writer.putFile("/com/example/lib~41.txt".toLocation(), "not-canonical".byteInputStream()))
+
+        // when: the repository starts again
+        val restarted = storageProvider(repository = "legacy-keys")
+
+        // then: canonical encoded keys are renamed back to their raw form
+        assertThat(String(assertOk(restarted.getFile("/com/example/1.0+1/lib-1.0+1.pom".toLocation())).readBytes())).isEqualTo("legacy")
+        assertThat(restarted.exists("/com/example/1.0~2b1/lib-1.0~2b1.pom".toLocation())).isFalse
+        assertThat(String(assertOk(restarted.getFile("/com/example/lib~raw.txt".toLocation())).readBytes())).isEqualTo("tilde")
+
+        // and: keys the old encoder could never have produced are left alone
+        assertThat(restarted.exists("/com/example/lib~41.txt".toLocation())).isTrue
+    }
+
+    @Test
+    fun `should keep a newer raw object when restoring a legacy encoded key`() {
+        // given: an encoded object, and the same file written again under its raw key after a rollback
+        val writer = storageProvider(repository = "legacy-conflict")
+        assertOk(writer.putFile("/lib-1.0~2b1.pom".toLocation(), "old".byteInputStream()))
+        Thread.sleep(1100) // S3 modification times have second precision
+        assertOk(writer.putFile("/lib-1.0+1.pom".toLocation(), "new".byteInputStream()))
+
+        // when: the repository starts again
+        val restarted = storageProvider(repository = "legacy-conflict")
+
+        // then: the newer raw object wins and the encoded copy is removed
+        assertThat(String(assertOk(restarted.getFile("/lib-1.0+1.pom".toLocation())).readBytes())).isEqualTo("new")
+        assertThat(restarted.exists("/lib-1.0~2b1.pom".toLocation())).isFalse
+    }
+
     private fun storageProvider(repository: String, prefix: String = "reposilite", sharedBucket: Boolean = true): StorageProvider {
         val logger = InMemoryLogger()
         return StorageFacade().createStorageProvider(

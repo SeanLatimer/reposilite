@@ -1,4 +1,4 @@
-# syntax=docker.io/docker/dockerfile:1.7-labs
+# syntax=docker.io/docker/dockerfile:1
 
 # Build stage
 FROM eclipse-temurin:25-jdk-noble AS build

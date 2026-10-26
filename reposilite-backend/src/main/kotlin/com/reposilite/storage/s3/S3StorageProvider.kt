@@ -46,6 +46,7 @@ import software.amazon.awssdk.services.s3.S3Client
 import software.amazon.awssdk.services.s3.model.BucketAlreadyExistsException
 import software.amazon.awssdk.services.s3.model.BucketAlreadyOwnedByYouException
 import software.amazon.awssdk.services.s3.model.CommonPrefix
+import software.amazon.awssdk.services.s3.model.CopyObjectRequest
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest
 import software.amazon.awssdk.services.s3.model.GetObjectRequest
 import software.amazon.awssdk.services.s3.model.HeadBucketRequest
@@ -67,6 +68,7 @@ import java.time.Duration
 import java.time.Instant
 
 private val skipBucketCreation = System.getProperty("reposilite.s3.skip-bucket-creation", "false") == "true"
+private val skipLegacyKeyMigration = System.getProperty("reposilite.s3.skip-legacy-key-migration", "false") == "true"
 
 class S3StorageProvider(
     private val failureFacade: FailureFacade,
@@ -83,13 +85,15 @@ class S3StorageProvider(
             createBucketIfNotExists()
         }
 
-        migrateLegacyKeys()
+        if (!skipLegacyKeyMigration) {
+            migrateLegacyKeys()
+        }
     }
 
     /**
-     * Keys stored before client-safe encoding was introduced contain characters that break
-     * presigned redirects for clients like Gradle. Rename such objects to their encoded form,
-     * so every lookup hits a single, redirect-safe physical key.
+     * A previous fork release stored keys in an encoded, client-safe form (see [S3KeyEncoder]).
+     * Rename such objects back to their raw keys, so the bucket stays readable by upstream Reposilite.
+     * Objects are copied server-side; if the raw key already exists and is newer, it is kept.
      */
     private fun migrateLegacyKeys() {
         try {
@@ -98,45 +102,38 @@ class S3StorageProvider(
                 .prefix(keyPrefix)
                 .build()
 
-            val legacyKeys = s3.listObjectsV2Paginator(request)
+            val objects = s3.listObjectsV2Paginator(request)
                 .contents()
-                .map { it.key() }
-                .filter { S3KeyEncoder.encode(it) != it }
+                .toList()
 
-            if (legacyKeys.isNotEmpty()) {
-                getLogger().info("S3 | Migrating ${legacyKeys.size} object(s) with client-unsafe characters in keys")
+            val existing = objects.associateBy { it.key() }
 
-                legacyKeys.forEach { key ->
-                    val temporary = File.createTempFile("reposilite-", "-s3-migrate")
+            val legacyObjects = objects
+                .mapNotNull { obj -> S3KeyEncoder.decodeLegacy(obj.key())?.let { obj to it } }
 
-                    try {
-                        val legacyRequest = GetObjectRequest.builder().bucket(bucket).key(key).build()
+            if (legacyObjects.isNotEmpty()) {
+                getLogger().info("S3 | Restoring raw keys of ${legacyObjects.size} object(s) stored in the encoded form")
 
-                        s3.getObject(legacyRequest).use { content ->
-                            val contentType = content.response().contentType()
+                legacyObjects.forEach { (obj, rawKey) ->
+                    // the raw key may have been written again, e.g. by upstream Reposilite after a rollback
+                    val rawIsNewer = existing[rawKey]?.lastModified()?.let { it >= obj.lastModified() } ?: false
 
-                            temporary.outputStream().use { destination ->
-                                content.transferTo(destination)
-                            }
+                    if (!rawIsNewer) {
+                        val copyRequest = CopyObjectRequest.builder()
+                            .sourceBucket(bucket)
+                            .sourceKey(obj.key())
+                            .destinationBucket(bucket)
+                            .destinationKey(rawKey)
+                            .build()
 
-                            val encodedRequest = PutObjectRequest.builder()
-                                .bucket(bucket)
-                                .key(S3KeyEncoder.encode(key))
-                                .contentLength(temporary.length())
-                                .letIf(contentType != null, { it.contentType(contentType) })
-                                .build()
-
-                            s3.putObject(encodedRequest, RequestBody.fromFile(temporary))
-                        }
-
-                        s3.deleteObject(createDeleteRequest(key))
-                    } finally {
-                        temporary.delete()
+                        s3.copyObject(copyRequest)
                     }
+
+                    s3.deleteObject(createDeleteRequest(obj.key()))
                 }
             }
         } catch (exception: Exception) {
-            throw IllegalStateException("Failed to migrate legacy S3 object keys", exception)
+            throw IllegalStateException("Failed to restore raw S3 object keys", exception)
         }
     }
 
@@ -162,6 +159,9 @@ class S3StorageProvider(
         s3.close()
         presigner?.close()
     }
+
+    override fun supportsDownloadRedirect(location: Location): Boolean =
+        S3KeyEncoder.isClientSafe(location.toBucketKey())
 
     override fun getDownloadUrl(location: Location): Result<URI, ErrorResponse> {
         val urlPresigner = presigner ?: return internalServerError("Presigned URLs are not configured")
@@ -266,13 +266,13 @@ class S3StorageProvider(
             .letIf({ it == "/" }, { "" })
 
     private fun Location.toBucketKey(): String =
-        S3KeyEncoder.encode(keyPrefix + toString().replace('\\', '/'))
+        keyPrefix + toString().replace('\\', '/')
 
     private fun Location.toBucketDirectoryPrefix(): String =
-        S3KeyEncoder.encode(keyPrefix + toDirectoryPrefix())
+        keyPrefix + toDirectoryPrefix()
 
     private fun String.withoutKeyPrefix(): String =
-        S3KeyEncoder.decode(this).removePrefix(keyPrefix)
+        removePrefix(keyPrefix)
 
     private fun toDocumentInfo(location: Location, head: HeadObjectResponse): FileDetails =
         location.toDocumentInfo(
@@ -303,11 +303,11 @@ class S3StorageProvider(
         }
 
         return try {
-            s3.deleteObject(createDeleteRequest(S3KeyEncoder.encode(keyPrefix + prefix)))
+            s3.deleteObject(createDeleteRequest(keyPrefix + prefix))
 
             val request = ListObjectsV2Request.builder()
                 .bucket(bucket)
-                .prefix(S3KeyEncoder.encode("$keyPrefix$prefix/"))
+                .prefix("$keyPrefix$prefix/")
                 .build()
 
             s3.listObjectsV2Paginator(request)

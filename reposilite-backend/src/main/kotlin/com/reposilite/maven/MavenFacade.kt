@@ -31,6 +31,8 @@ import com.reposilite.maven.api.SaveMetadataRequest
 import com.reposilite.maven.api.VersionLookupRequest
 import com.reposilite.maven.api.VersionsResponse
 import com.reposilite.plugin.api.Facade
+import com.reposilite.repository.RepositoryFacade
+import com.reposilite.repository.api.RepositoryProvider
 import com.reposilite.shared.ErrorResponse
 import com.reposilite.storage.api.DirectoryInfo
 import com.reposilite.storage.api.FileDetails
@@ -42,13 +44,13 @@ import java.net.URI
 
 class MavenFacade internal constructor(
     private val journalist: Journalist,
-    private val repositorySecurityProvider: RepositorySecurityProvider,
-    private val repositoryProvider: RepositoryProvider,
+    private val repositoryFacade: RepositoryFacade,
+    private val repositories: MavenRepositories,
     private val metadataService: MetadataService,
     private val latestService: LatestService,
-) : Journalist, Facade {
+) : Journalist, Facade, RepositoryProvider {
 
-    private val repositoryService = repositoryProvider.repositoryService
+    private val repositoryService = repositories.repositoryService
 
     fun findDetails(lookupRequest: LookupRequest): Result<out FileDetails, ErrorResponse> =
         repositoryService.findDetails(lookupRequest)
@@ -78,11 +80,11 @@ class MavenFacade internal constructor(
         metadataService.findMetadata(repository, gav)
 
     fun findVersions(lookupRequest: VersionLookupRequest): Result<VersionsResponse, ErrorResponse> =
-        repositorySecurityProvider.canAccessResource(lookupRequest.accessToken, lookupRequest.repository, lookupRequest.gav)
+        repositoryFacade.canAccessResource(lookupRequest.accessToken, lookupRequest.repository, lookupRequest.gav)
             .flatMap { metadataService.findVersions(lookupRequest.repository, lookupRequest.gav, lookupRequest.filter, lookupRequest.sorted) }
 
     fun findLatestVersion(lookupRequest: VersionLookupRequest): Result<LatestVersionResponse, ErrorResponse> =
-        repositorySecurityProvider.canAccessResource(lookupRequest.accessToken, lookupRequest.repository, lookupRequest.gav)
+        repositoryFacade.canAccessResource(lookupRequest.accessToken, lookupRequest.repository, lookupRequest.gav)
             .flatMap { metadataService.findLatestVersion(lookupRequest.repository, lookupRequest.gav, lookupRequest.filter, lookupRequest.sorted) }
 
     fun <T> findLatestVersionFile(latestArtifactQueryRequest: LatestArtifactQueryRequest, handler: MatchedVersionHandler<T>): Result<T, ErrorResponse> =
@@ -95,10 +97,10 @@ class MavenFacade internal constructor(
     fun getAvailableFiles(request: LookupRequest, directoryInfo: DirectoryInfo): List<FileDetails> =
         getRepository(request.repository)!!.let { repository ->
             directoryInfo.files.filter {
-                repositorySecurityProvider.canBrowseResource(
+                repositoryFacade.canBrowseResource(
                     accessToken = request.accessToken,
                     repository = repository,
-                    gav = request.gav.resolve(it.name)
+                    resourcePath = request.gav.resolve(it.name)
                 ).isOk
             }
         }
@@ -111,16 +113,16 @@ class MavenFacade internal constructor(
         getRepository(request.repository)?.acceptsCachingOf(request.gav) ?: false
 
     fun canAccessResource(accessToken: AccessTokenIdentifier?, repository: Repository, gav: Location): Result<Unit, ErrorResponse> =
-        repositorySecurityProvider.canAccessResource(accessToken, repository, gav)
+        repositoryFacade.canAccessResource(accessToken, repository, gav)
 
     fun findRepositories(accessToken: AccessTokenIdentifier?): DirectoryInfo =
         repositoryService.getRootDirectory(accessToken)
 
     fun getRepository(name: String) =
-        repositoryService.repositoryProvider.getRepository(name)
+        repositories.getRepository(name)
 
-    fun getRepositories(): Collection<Repository> =
-        repositoryService.repositoryProvider.getRepositories()
+    override fun getRepositories(): Collection<Repository> =
+        repositories.getRepositories()
 
     override fun getLogger(): Logger =
         journalist.logger
