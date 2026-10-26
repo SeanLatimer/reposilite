@@ -265,6 +265,7 @@ const formsConfiguration = {
 .settings-view :deep(.description) {
   padding-left: 0.45em;
   padding-bottom: 0.7em;
+  white-space: pre-line;
   @apply text-sm italic;
 }
 .settings-view :deep(.array-list) {

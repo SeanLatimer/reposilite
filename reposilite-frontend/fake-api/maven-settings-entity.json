@@ -1,22 +1,74 @@
 {
-  "downloadRedirectUserAgents": ["curl/", "wget/", "mozilla/", "apache-maven/", "gradle/", "coursier/"],
   "repositories": [
     {
       "id": "releases",
       "visibility": "PUBLIC",
       "redeployment": false,
       "preserveSnapshots": false,
-      "storageProvider": { "type": "s3", "bucketName": "test" },
+      "storageProvider": {
+        "type": "s3",
+        "bucketName": "reposilite-releases",
+        "endpoint": "https://s3.example.com",
+        "accessKey": "fake-access-key",
+        "secretKey": "fake-secret-key",
+        "region": "auto",
+        "signer": "DEFAULT",
+        "prefix": "",
+        "sharedBucket": false,
+        "downloadRedirect": "AUTO",
+        "downloadRedirectValiditySeconds": 300,
+        "indexSettings": {
+          "enabled": true,
+          "serveMetadata": false,
+          "reconciliationIntervalSeconds": 172800
+        }
+      },
+      "storagePolicy": "PRIORITIZE_UPSTREAM_METADATA",
+      "metadataMaxAge": 0,
+      "resolutionCacheMaxEntries": 0,
       "proxied": [
         {
           "reference": "https://jitpack.io",
           "store": true,
           "allowedGroups": [],
+          "blockedGroups": [],
+          "allowedExtensions": [
+            ".jar",
+            ".pom"
+          ],
           "connectTimeout": 3,
           "readTimeout": 15,
-          "httpProxy": ""
+          "httpProxy": "",
+          "authenticatedFetchingOnly": false
         }
-      ]
+      ],
+      "parallelMetadataLookup": false,
+      "resolutionCacheLevel": "NEGATIVE_CACHING"
+    },
+    {
+      "id": "snapshots",
+      "visibility": "PUBLIC",
+      "redeployment": true,
+      "preserveSnapshots": false,
+      "storageProvider": {
+        "type": "fs",
+        "quota": "100%",
+        "mount": ""
+      },
+      "storagePolicy": "PRIORITIZE_UPSTREAM_METADATA",
+      "metadataMaxAge": 0,
+      "resolutionCacheMaxEntries": 0,
+      "proxied": [],
+      "parallelMetadataLookup": false,
+      "resolutionCacheLevel": "NEGATIVE_CACHING"
     }
+  ],
+  "downloadRedirectUserAgents": [
+    "curl/",
+    "wget/",
+    "mozilla/",
+    "apache-maven/",
+    "gradle/",
+    "coursier/"
   ]
 }

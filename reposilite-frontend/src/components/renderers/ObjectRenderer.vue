@@ -15,7 +15,21 @@
   -->
 
 <template>
-  <div v-if="control.visible">
+  <div
+    v-if="control.visible"
+    :class="{ 'object-panel': !isRoot }"
+  >
+    <template v-if="!isRoot">
+      <div class="label object-label">
+        {{ control.label }}
+      </div>
+      <div
+        v-if="control.description"
+        class="description"
+      >
+        {{ control.description }}
+      </div>
+    </template>
     <DispatchRenderer
       :visible="control.visible"
       :enabled="control.enabled"
@@ -52,6 +66,9 @@ export default {
     }
   },
   computed: {
+    isRoot() {
+      return isEmpty(this.control.path)
+    },
     detailUiSchema() {
       const result = findUISchema(
           this.control.uischemas,
@@ -62,10 +79,10 @@ export default {
           this.control.uischema,
           this.control.rootSchema
       )
-      if (isEmpty(this.control.path)) {
+      if (this.isRoot) {
         result.type = 'VerticalLayout'
       } else {
-        result.label = this.control.label
+        // label and description are rendered above the group
         if (this.nested.level > 0) {
           result.options = {
             ...result.options,
@@ -81,6 +98,12 @@ export default {
 }
 </script>
 
+<!--suppress CssInvalidAtRule -->
 <style scoped>
-
+.object-panel {
+  @apply rounded-lg bg-gray-100 dark:bg-gray-800 px-4 py-3;
+}
+.object-label {
+  padding-left: 0;
+}
 </style>

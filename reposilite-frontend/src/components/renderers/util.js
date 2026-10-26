@@ -26,3 +26,26 @@ export const useNested = (element) => {
   }
   return nestedInfo
 }
+
+const DURATION_UNITS = [
+  ['day', 60 * 60 * 24],
+  ['hour', 60 * 60],
+  ['minute', 60],
+  ['second', 1],
+]
+
+/* Formats a number of seconds using its two largest units, e.g. 172800 -> "2 days", 5400 -> "1 hour 30 minutes" */
+export const formatSeconds = (seconds) => {
+  if (!Number.isInteger(seconds) || seconds <= 0) return undefined
+  const parts = []
+  let remaining = seconds
+  for (const [unit, size] of DURATION_UNITS) {
+    const amount = Math.floor(remaining / size)
+    if (amount > 0) {
+      parts.push(`${amount} ${unit}${amount === 1 ? '' : 's'}`)
+      remaining -= amount * size
+    }
+    if (parts.length === 2) break
+  }
+  return parts.join(' ')
+}
