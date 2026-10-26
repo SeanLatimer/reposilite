@@ -84,19 +84,16 @@ internal class RepositoryFactory(
     }
 
     private fun decorateWithIndex(repositoryName: String, configuration: RepositorySettings, storageProvider: StorageProvider): StorageProvider =
-        when (val indexSettings = (configuration.storageProvider as? S3StorageProviderSettings)?.indexSettings) {
+        when (val indexSettings = (configuration.storageProvider as? S3StorageProviderSettings)?.indexSettings?.takeIf { it.enabled }) {
             null -> storageProvider
-            else -> when {
-                !indexSettings.enabled -> storageProvider
-                else -> IndexedStorageProvider(
-                    journalist = journalist,
-                    delegate = storageProvider,
-                    index = artifactIndexDatabase.open(),
-                    repository = repositoryName,
-                    settings = indexSettings,
-                    clock = Clock.systemDefaultZone(),
-                )
-            }
+            else -> IndexedStorageProvider(
+                journalist = journalist,
+                delegate = storageProvider,
+                index = artifactIndexDatabase.open(),
+                repository = repositoryName,
+                settings = indexSettings,
+                clock = Clock.systemDefaultZone(),
+            )
         }
 
     private fun createMirroredHostConfiguration(configurationSource: MirroredRepositorySettings): MirrorHost? {

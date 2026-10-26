@@ -16,6 +16,8 @@
 
 package com.reposilite.storage.s3
 
+import com.fasterxml.jackson.annotation.JsonSetter
+import com.fasterxml.jackson.annotation.Nulls
 import com.reposilite.configuration.shared.api.Doc
 import com.reposilite.storage.DownloadRedirectMode
 import com.reposilite.storage.StorageProviderSettings
@@ -55,19 +57,21 @@ data class S3StorageProviderSettings(
     val sharedBucket: Boolean = false,
     @get:Doc(title = "Local Metadata Cache", description = "Local metadata cache settings (optional). The default is no caching. NOTE: This cache is local only. If you run multiple instances, they will not share the cache!")
     val metadataCacheSettings: S3MetadataCacheSettings? = null,
-    @get:Doc(title = "Download Redirect", description = "Redirect file downloads to short-lived presigned S3 URLs instead of proxying them through Reposilite. OFF always streams content through Reposilite (default). AUTO redirects only clients known to follow HTTP redirects (curl, wget, browsers) and streams for everything else. ALWAYS redirects all clients, which requires them to follow HTTP redirects. Redirected responses are not cacheable and bypass Reposilite compression. (optional)")
+    @get:Doc(title = "Download Redirect", description = "Send downloads to short-lived presigned S3 URLs instead of streaming them through Reposilite. OFF always streams, AUTO redirects only the clients listed in AUTO Redirect User Agents, ALWAYS redirects every client.")
     val downloadRedirect: DownloadRedirectMode = DownloadRedirectMode.OFF,
     @get:Doc(title = "Download Redirect Validity", description = "Validity window of presigned download URLs in seconds (optional)")
     val downloadRedirectValiditySeconds: Long = 300,
-    @get:Doc(title = "Listing Index", description = "Maintain a local index of stored objects to serve directory listings without S3 LIST requests. Updated on deploys and deletes, periodically reconciled against S3 (S3 remains the source of truth). Out-of-band changes become visible after the next reconciliation. (optional)")
-    val indexSettings: S3IndexSettings? = null,
+    // Non-null so the form shows a single 'Enabled' toggle; "indexSettings": null still loads as disabled.
+    // Documented on S3IndexSettings, as a property-level @Doc turns the schema into a broken 'allOf'.
+    @JsonSetter(nulls = Nulls.SKIP)
+    val indexSettings: S3IndexSettings = S3IndexSettings(),
 ) : StorageProviderSettings
 
-@Doc(title = "S3 Listing Index", description = "Local index of S3 objects used to serve repository listings")
+@Doc(title = "Listing Index", description = "Serve directory listings from a local index instead of S3 LIST requests. S3 stays the source of truth.")
 data class S3IndexSettings(
     @get:Doc(title = "Enabled", description = "Enable the listing index for this repository?")
     val enabled: Boolean = false,
-    @get:Doc(title = "Serve Metadata", description = "Also serve single-file metadata (size, modification time) from the index instead of querying S3. Objects modified outside Reposilite serve stale metadata until the next reconciliation.")
+    @get:Doc(title = "Serve Metadata", description = "Also serve file size and modification time from the index instead of asking S3.")
     val serveMetadata: Boolean = false,
     @get:Doc(title = "Reconciliation Interval", description = "Interval between index reconciliations with S3 in seconds")
     val reconciliationIntervalSeconds: Long = 60 * 60 * 24, // 1 day

@@ -1,47 +1,47 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
+  "description": "Repositories settings",
+  "title": "Maven",
   "properties": {
-    "downloadRedirectUserAgents": {
-      "title": "AUTO Redirect User Agents",
-      "description": "Case-insensitive substrings of User-Agent headers allowed to receive presigned download redirects when a repository uses AUTO redirect mode. The default allows curl, wget, browsers, Apache Maven, Gradle, and Coursier. An empty list disables AUTO redirects; OFF and ALWAYS modes are unaffected.",
-      "type": "array",
-      "items": {
-        "type": "string"
-      }
-    },
     "repositories": {
-      "title": "Repositories",
-      "description": "List of Maven repositories.",
       "type": "array",
       "items": {
         "type": "object",
+        "description": "Settings for a given repository.",
+        "title": "Maven Repository",
         "properties": {
           "id": {
             "type": "string",
-            "title": "Id",
-            "description": "The id of this repository."
+            "description": "The id of this repository.",
+            "title": "Id"
           },
           "visibility": {
             "type": "string",
-            "enum": ["PUBLIC", "HIDDEN", "PRIVATE"],
-            "title": "Visibility",
-            "description": "The visibility of this repository."
+            "enum": [
+              "PUBLIC",
+              "HIDDEN",
+              "PRIVATE"
+            ],
+            "description": "The visibility of this repository.",
+            "title": "Visibility"
           },
           "redeployment": {
             "type": "boolean",
-            "title": "Redeployment",
-            "description": "Does this repository accept redeployment of the same artifact version."
+            "description": "Does this repository accept redeployment of the same artifact version.",
+            "title": "Redeployment"
           },
           "preserveSnapshots": {
             "type": "boolean",
-            "title": "Preserved snapshots",
-            "description": "By default, Reposilite deletes deprecated build files, including snapshots cached through mirrored repositories. If you'd like to preserve them, set this property to true."
+            "description": "By default, Reposilite deletes deprecated build files, including snapshots cached through mirrored repositories. If you'd like to preserve them, set this property to true.",
+            "title": "Preserved snapshots"
           },
           "storageProvider": {
             "oneOf": [
               {
                 "type": "object",
+                "description": "Local file system (disk) storage provider settings",
+                "title": "File system Storage Provider",
                 "properties": {
                   "type": {
                     "type": "string",
@@ -49,21 +49,20 @@
                   },
                   "quota": {
                     "type": "string",
-                    "title": "Quota",
-                    "description": "Control the maximum amount of data stored in this repository. Supported formats: 90%, 500MB, 10GB (optional, by default: unlimited)"
+                    "description": "Control the maximum amount of data stored in this repository. Supported formats: 90%, 500MB, 10GB (optional, by default: unlimited)",
+                    "title": "Quota"
                   },
                   "mount": {
                     "type": "string",
-                    "title": "Mount",
-                    "description": "Use custom directory to locate the repository data (optional, by default it's './repositories/{name}')"
+                    "description": "Use custom directory to locate the repository data (optional, by default it's './repositories/{name}')",
+                    "title": "Mount"
                   }
-                },
-                "title": "File system Storage Provider",
-                "description": "Local file system (disk) storage provider settings",
-                "additionalProperties": false
+                }
               },
               {
                 "type": "object",
+                "description": "Amazon S3 storage provider settings",
+                "title": "S3 Storage Provider",
                 "properties": {
                   "type": {
                     "type": "string",
@@ -71,112 +70,271 @@
                   },
                   "bucketName": {
                     "type": "string",
-                    "title": "Bucket",
-                    "description": "The selected AWS bucket"
+                    "description": "The selected AWS bucket",
+                    "title": "Bucket"
                   },
                   "endpoint": {
                     "type": "string",
-                    "title": "Endpoint",
-                    "description": "Overwrite the AWS endpoint (optional)"
+                    "description": "Overwrite the AWS endpoint (optional)",
+                    "title": "Endpoint"
                   },
                   "accessKey": {
                     "type": "string",
-                    "title": "Access Key",
-                    "description": "Overwrite AWS access-key used to authenticate (optional)"
+                    "description": "Overwrite AWS access-key used to authenticate (optional)",
+                    "title": "Access Key"
                   },
                   "secretKey": {
                     "type": "string",
-                    "title": "Secret Key",
-                    "description": "Overwrite AWS secret-key used to authenticate (optional)"
+                    "description": "Overwrite AWS secret-key used to authenticate (optional)",
+                    "title": "Secret Key"
                   },
                   "region": {
                     "type": "string",
-                    "title": "Region",
-                    "description": "Overwrite AWS region (optional)"
+                    "description": "Overwrite AWS region (optional)",
+                    "title": "Region"
+                  },
+                  "signer": {
+                    "type": "string",
+                    "enum": [
+                      "DEFAULT",
+                      "LEGACY_V4"
+                    ],
+                    "description": "Select the request signer implementation. LEGACY_V4 is required by Cloudflare R2 (optional)",
+                    "title": "Signer"
+                  },
+                  "prefix": {
+                    "type": "string",
+                    "description": "Optional prefix prepended to all object keys, e.g. to scope data within a bucket shared with other services",
+                    "title": "Key Prefix"
+                  },
+                  "sharedBucket": {
+                    "type": "boolean",
+                    "description": "Namespace objects under the repository name so several repositories can share one bucket (optional)",
+                    "title": "Shared Bucket"
+                  },
+                  "metadataCacheSettings": {
+                    "description": "Local metadata cache settings (optional). The default is no caching. NOTE: This cache is local only. If you run multiple instances, they will not share the cache!",
+                    "title": "Local Metadata Cache",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "description": "Enable the cache?",
+                        "title": "Enabled"
+                      },
+                      "maximumSize": {
+                        "type": "integer",
+                        "format": "int64",
+                        "description": "Maximum number of cached entries",
+                        "title": "Max Cache Entries"
+                      },
+                      "expireAfterAccessSeconds": {
+                        "type": "integer",
+                        "format": "int64",
+                        "description": "Expire cache entries after the specified number of seconds since last read access",
+                        "title": "Expire After Access"
+                      },
+                      "expireAfterCreationSeconds": {
+                        "type": "integer",
+                        "format": "int64",
+                        "description": "Expire cache entries after the specified number of seconds since the initial download",
+                        "title": "Expire After Creation"
+                      }
+                    },
+                    "type": [
+                      "object",
+                      "null"
+                    ]
+                  },
+                  "downloadRedirect": {
+                    "type": "string",
+                    "enum": [
+                      "OFF",
+                      "AUTO",
+                      "ALWAYS"
+                    ],
+                    "description": "Send downloads to short-lived presigned S3 URLs instead of streaming them through Reposilite. OFF always streams, AUTO redirects only the clients listed in AUTO Redirect User Agents, ALWAYS redirects every client.",
+                    "title": "Download Redirect"
+                  },
+                  "downloadRedirectValiditySeconds": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "Validity window of presigned download URLs in seconds (optional)",
+                    "title": "Download Redirect Validity"
+                  },
+                  "indexSettings": {
+                    "type": "object",
+                    "description": "Serve directory listings from a local index instead of S3 LIST requests. S3 stays the source of truth.",
+                    "title": "Listing Index",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "description": "Enable the listing index for this repository?",
+                        "title": "Enabled"
+                      },
+                      "serveMetadata": {
+                        "type": "boolean",
+                        "description": "Also serve file size and modification time from the index instead of asking S3.",
+                        "title": "Serve Metadata"
+                      },
+                      "reconciliationIntervalSeconds": {
+                        "type": "integer",
+                        "format": "int64",
+                        "description": "Interval between index reconciliations with S3 in seconds",
+                        "title": "Reconciliation Interval"
+                      }
+                    }
                   }
-                },
-                "title": "S3 Storage Provider",
-                "description": "Amazon S3 storage provider settings",
-                "additionalProperties": false
+                }
               }
-            ]
+            ],
+            "description": "The storage type of this repository.",
+            "title": "Storage provider"
+          },
+          "storagePolicy": {
+            "type": "string",
+            "enum": [
+              "PRIORITIZE_UPSTREAM_METADATA",
+              "STRICT"
+            ],
+            "description": "Defines how Reposilite should handle requests to repository with configured mirrored repositories. <br/>\nPRIORITIZE_UPSTREAM_METADATA - try to fetch the latest version of the artifact from the remote repository <br/>\nSTRICT - prioritize cached version over upstream metadata (full offline mode)",
+            "title": "Storage policy"
+          },
+          "metadataMaxAge": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Fetching metadata files with PRIORITIZE_UPSTREAM_METADATA may be slow, so you can use dedicated TTL threshold for them.<br/>\nIf set to \"0\" then a fetch is done always. (Default: 0 seconds)",
+            "title": "Max age of metadata file"
+          },
+          "resolutionCacheMaxEntries": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Caches routing decisions for metadata reads (maven-metadata.xml, *.pom, *.module, Ivy XML)\nto speed up repeated requests. The cache never retains more than this number of entries.\nAs a rough estimate, 1 MB of JVM heap can hold around 3,000 entries:<br/>\n0 - disabled (no mirrors, or caching not needed)<br/>\n128 - proxying a small fixed set of artifacts (single vendor SDK, internal repos)<br/>\n512 - proxying focused ecosystems (BOM + transitives, a few curated mirrors)<br/>\n2048+ - proxying broad ecosystems like Maven Central<br/>\n(Default: 0)",
+            "title": "Resolution cache size"
           },
           "proxied": {
-            "title": "Mirrored repositories",
-            "description": "List of mirrored repositories associated with this repository.",
             "type": "array",
             "items": {
               "type": "object",
+              "description": "Configuration of proxied host",
+              "title": "Mirrored Maven Repository",
               "properties": {
                 "reference": {
                   "type": "string",
-                  "title": "Link",
-                  "description": "Either the id of other local repository or the URL of a remote repository."
+                  "description": "Either the id of other local repository or the URL of a remote repository.",
+                  "title": "Link"
                 },
                 "store": {
                   "type": "boolean",
-                  "title": "Store",
-                  "description": "Reposilite can store proxied artifacts locally to reduce response time and improve stability."
+                  "description": "Reposilite can store proxied artifacts locally to reduce response time and improve stability.",
+                  "title": "Store"
                 },
                 "allowedGroups": {
-                  "title": "Allowed Groups",
-                  "description": "Allowed artifact groups. If none are given, all artifacts can be obtained from this proxy.",
                   "type": "array",
                   "items": {
-                    "type": "string",
-                    "title": "Allowed Groups",
-                    "description": "Allowed artifact groups. If none are given, all artifacts can be obtained from this proxy."
-                  }
+                    "type": "string"
+                  },
+                  "description": "Allowed artifact groups. If none are given, all artifacts can be obtained from this mirror.",
+                  "title": "Allowed Groups"
+                },
+                "blockedGroups": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Artifact groups that are never requested from this mirror. Takes precedence over Allowed Groups. Matched as a path prefix, so 'com.acme' also blocks 'com.acmecorp' - prefer the most specific group you can.",
+                  "title": "Blocked Groups"
+                },
+                "allowedExtensions": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "List of accepted file extensions. If none are given, all files can be obtained from this mirror. Use the special value '&lt;none&gt;' to permit files without an extension (e.g. native binaries).",
+                  "title": "Allowed Extensions"
                 },
                 "connectTimeout": {
                   "type": "integer",
                   "format": "int32",
-                  "title": "Connect Timeout",
-                  "description": "How long Reposilite can wait for establishing the connection with a remote host."
+                  "description": "How long Reposilite can wait for establishing the connection with a remote host. (In seconds)",
+                  "title": "Connect Timeout"
                 },
                 "readTimeout": {
                   "type": "integer",
                   "format": "int32",
-                  "title": "Read Timeout",
-                  "description": "How long Reposilite can read data from remote proxy."
+                  "description": "How long Reposilite can read data from remote proxy. (In seconds)",
+                  "title": "Read Timeout"
                 },
                 "authorization": {
-                  "type": ["object", "null"],
+                  "description": "The authorization credentials used to access mirrored repository.",
+                  "title": "Mirror Credentials",
                   "properties": {
+                    "method": {
+                      "type": "string",
+                      "enum": [
+                        "BASIC",
+                        "CUSTOM_HEADER",
+                        "LOOPBACK_LINK"
+                      ],
+                      "description": "Basic or custom header",
+                      "title": "Method"
+                    },
                     "login": {
                       "type": "string",
-                      "title": "Login",
-                      "description": "Login to use by proxied HTTP client"
+                      "description": "Login or custom header name to use",
+                      "title": "Login"
                     },
                     "password": {
                       "type": "string",
-                      "title": "Password",
-                      "description": "Raw password used by proxied HTTP client to connect to the given repository"
+                      "description": "Raw password or header value used by HTTP client to connect to the given repository",
+                      "title": "Password"
                     }
                   },
-                  "title": "Proxied credentials",
-                  "description": "The authorization credentials used to access proxied repository.",
-                  "additionalProperties": false
+                  "type": [
+                    "object",
+                    "null"
+                  ]
                 },
                 "httpProxy": {
                   "type": "string",
-                  "title": "HTTP Proxy",
-                  "description": "Custom proxy configuration for HTTP/SOCKS client used by Reposilite. Examples: <br/>\nHTTP 127.0.0.1:1081 <br/>\nSOCKS 127.0.0.1:1080 login password "
+                  "description": "Custom proxy configuration for HTTP/SOCKS client used by Reposilite to connect to the mirrored repository. Examples: <br/>\nHTTP 127.0.0.1:1081 <br/>\nSOCKS 127.0.0.1:1080 login password ",
+                  "title": "HTTP Proxy"
+                },
+                "authenticatedFetchingOnly": {
+                  "type": "boolean",
+                  "description": "Whether to require an authenticated connection before fetching uncached artifacts from the remote repository.<br/>\n_This should only ever be turned on in conjunction with the store option or with a secondary mirror host that has this option turned off.<br/>\nIf you are looking to hide this mirror from unauthenticated connections, please use repository visibility options instead._",
+                  "title": "Authenticated Fetching Only"
                 }
-              },
-              "title": "Mirrored Maven Repository",
-              "description": "Configuration of proxied host",
-              "additionalProperties": false
-            }
+              }
+            },
+            "description": "List of mirrored repositories associated with this repository.",
+            "title": "Mirrored repositories"
+          },
+          "parallelMetadataLookup": {
+            "type": "boolean",
+            "description": "Probe mirrors concurrently for Maven metadata and route later requests through the first matching mirror. Requires the resolution cache to be enabled.",
+            "title": "Parallel metadata lookup"
+          },
+          "resolutionCacheLevel": {
+            "type": "string",
+            "enum": [
+              "PINNING",
+              "NEGATIVE_CACHING"
+            ],
+            "description": "PINNING remembers the mirror serving metadata. NEGATIVE_CACHING also caches exact metadata misses from mirrors until eviction or invalidation.",
+            "title": "Resolution cache level"
           }
-        },
-        "title": "Maven Repository",
-        "description": "Settings for a given repository.",
-        "additionalProperties": false
-      }
+        }
+      },
+      "description": "List of Maven repositories.",
+      "title": "Repositories"
+    },
+    "downloadRedirectUserAgents": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "User-Agent substrings (case-insensitive) that get presigned redirects from S3 repositories in AUTO mode. An empty list streams every request.",
+      "title": "AUTO Redirect User Agents"
     }
-  },
-  "title": "Maven",
-  "description": "Repositories settings",
-  "additionalProperties": false
+  }
 }

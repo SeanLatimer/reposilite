@@ -26,6 +26,9 @@ import { default as ArrayListRenderer, tester as arrayListTester } from '../comp
 import { default as OneOfRenderer, tester as oneOfTester } from '../components/renderers/OneOfRenderer.vue'
 import { default as ConstantRenderer, tester as constantTester } from '../components/renderers/ConstantRenderer.vue'
 import { default as OptionalRenderer, tester as optionalTester } from '../components/renderers/OptionalRenderer.vue'
+import { default as StringArrayRenderer, tester as stringArrayTester } from '../components/renderers/StringArrayRenderer.vue'
+import { default as SecondsIntegerRenderer, tester as secondsIntegerTester } from '../components/renderers/SecondsIntegerRenderer.vue'
+import { default as SecretStringRenderer, tester as secretStringTester } from '../components/renderers/SecretStringRenderer.vue'
 
 const { client } = useSession()
 const domains = ref([])
@@ -34,13 +37,38 @@ const configurations = ref({})
 const selectedDomain = ref('')
 const isLoading = ref(false)
 
+/*
+ * Backend descriptions use '<br/>' for line breaks and wrap their source code lines arbitrarily.
+ * Turn them into plain text with real line breaks, so they render without v-html.
+ */
+const normalizeDescription = (description) =>
+  description
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .split(/<br\s*\/?>/i)
+    .map(line => line.replace(/\s+/g, ' ').trim())
+    .filter(line => line.length > 0)
+    .join('\n')
+
+const normalizeSchema = (node) => {
+  if (Array.isArray(node)) {
+    node.forEach(normalizeSchema)
+  } else if (node && typeof node === 'object') {
+    Object.entries(node).forEach(([key, value]) => {
+      if (key === 'description' && typeof value === 'string') node[key] = normalizeDescription(value)
+      else normalizeSchema(value)
+    })
+  }
+  return node
+}
+
 const fetchConfiguration = () => {
   isLoading.value = true
   return client.value.settings.domains()
     .then(domainsResponse =>
       Promise.all(domainsResponse.data.map(domain =>
         client.value.settings.schema(domain)
-          .then(schemaResponse => schemas.value[domain] = schemaResponse.data)
+          .then(schemaResponse => schemas.value[domain] = normalizeSchema(schemaResponse.data))
           .then(() => client.value.settings.fetch(domain))
           .then(configurationResponse => configurations.value[domain] = configurationResponse.data)
       )).then(() => domains.value = domainsResponse.data)
@@ -61,7 +89,10 @@ const updateConfiguration = () =>
     .catch(error => createToast(`${error || ''}`, { type: 'danger' }))
 
 const renderers = markRaw([
+  { tester: stringArrayTester, renderer: StringArrayRenderer },
   { tester: arrayListTester, renderer: ArrayListRenderer },
+  { tester: secondsIntegerTester, renderer: SecondsIntegerRenderer },
+  { tester: secretStringTester, renderer: SecretStringRenderer },
   { tester: allOfTester, renderer: AllOfRenderer },
   { tester: oneOfTester, renderer: OneOfRenderer },
   { tester: constantTester, renderer: ConstantRenderer },
