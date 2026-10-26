@@ -2,6 +2,10 @@
 
 # Build stage
 FROM eclipse-temurin:25-jdk-noble AS build
+COPY docker/security/blocked.certs /tmp/blocked.certs
+RUN cat "$JAVA_HOME/lib/security/blocked.certs" >> /tmp/blocked.certs \
+    && sort -u /tmp/blocked.certs -o "$JAVA_HOME/lib/security/blocked.certs" \
+    && rm /tmp/blocked.certs
 COPY --exclude=entrypoint.sh . /home/reposilite-build
 WORKDIR /home/reposilite-build
 
@@ -27,6 +31,15 @@ LABEL org.label-schema.build-date=$BUILD_DATE \
 
 # Run stage
 FROM eclipse-temurin:25-jre-noble AS run
+COPY docker/security/blocked.certs /tmp/blocked.certs
+RUN cat "$JAVA_HOME/lib/security/blocked.certs" >> /tmp/blocked.certs \
+    && sort -u /tmp/blocked.certs -o "$JAVA_HOME/lib/security/blocked.certs" \
+    && rm /tmp/blocked.certs
+
+# Temurin 25 images no longer ship curl, which the HEALTHCHECK below needs
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
 
 # Setup runtime environment
 RUN mkdir -p /app/data && mkdir -p /var/log/reposilite
