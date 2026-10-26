@@ -22,6 +22,7 @@ import com.reposilite.maven.application.MirroredRepositorySettings
 import com.reposilite.maven.application.RepositorySettings
 import com.reposilite.maven.index.ArtifactIndexDatabase
 import com.reposilite.maven.index.IndexedStorageProvider
+import com.reposilite.repository.api.RepositoryIdentity
 import com.reposilite.shared.http.RemoteClientProvider
 import com.reposilite.shared.http.createHttpProxy
 import com.reposilite.status.FailureFacade
@@ -31,7 +32,6 @@ import com.reposilite.storage.s3.S3StorageProviderSettings
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.time.Clock
-import java.util.UUID
 
 internal class RepositoryFactory(
     private val journalist: Journalist,
@@ -47,32 +47,41 @@ internal class RepositoryFactory(
 
     private val repositoriesDirectory = Paths.get("repositories")
 
-    fun createRepository(repositoryName: String, configuration: RepositorySettings): Repository =
-        Repository(
-            name = repositoryName.ifEmpty { UUID.randomUUID().toString() },
-            visibility = configuration.visibility,
-            redeployment = configuration.redeployment,
-            preserveSnapshots = configuration.preserveSnapshots,
-            mirrorHosts = configuration.proxied.mapNotNull { createMirroredHostConfiguration(it) },
-            storageProvider = decorateWithIndex(
-                repositoryName = repositoryName,
-                configuration = configuration,
-                storageProvider = storageFacade
-                    .createStorageProvider(
-                        journalist = journalist,
-                        failureFacade = failureFacade,
-                        workingDirectory = workingDirectory.resolve(repositoriesDirectory),
-                        repository = repositoryName,
-                        storageSettings = configuration.storageProvider,
-                    )
-                    ?: throw IllegalArgumentException("Unknown storage provider '${configuration.storageProvider.type}'"),
-            ),
-            storagePolicy = configuration.storagePolicy,
-            metadataMaxAgeInSeconds = configuration.metadataMaxAge,
-            parallelMetadataLookup = configuration.parallelMetadataLookup,
-            resolutionCacheMaxEntries = configuration.resolutionCacheMaxEntries,
-            resolutionCacheLevel = configuration.resolutionCacheLevel,
+    fun createRepository(identity: RepositoryIdentity, configuration: RepositorySettings): Repository {
+        val mirrorHosts = configuration.proxied.mapNotNull { createMirroredHostConfiguration(it) }
+        val storageProvider = decorateWithIndex(
+            repositoryName = identity.name,
+            configuration = configuration,
+            storageProvider = storageFacade
+                .createStorageProvider(
+                    journalist = journalist,
+                    failureFacade = failureFacade,
+                    workingDirectory = workingDirectory.resolve(repositoriesDirectory),
+                    repository = identity.name,
+                    storageSettings = configuration.storageProvider,
+                )
+                ?: throw IllegalArgumentException("Unknown storage provider '${configuration.storageProvider.type}'"),
         )
+
+        return try {
+            Repository(
+                identity = identity,
+                visibility = configuration.visibility,
+                redeployment = configuration.redeployment,
+                preserveSnapshots = configuration.preserveSnapshots,
+                mirrorHosts = mirrorHosts,
+                storageProvider = storageProvider,
+                storagePolicy = configuration.storagePolicy,
+                metadataMaxAgeInSeconds = configuration.metadataMaxAge,
+                parallelMetadataLookup = configuration.parallelMetadataLookup,
+                resolutionCacheMaxEntries = configuration.resolutionCacheMaxEntries,
+                resolutionCacheLevel = configuration.resolutionCacheLevel,
+            )
+        } catch (exception: Exception) {
+            runCatching { storageProvider.shutdown() }
+            throw exception
+        }
+    }
 
     private fun decorateWithIndex(repositoryName: String, configuration: RepositorySettings, storageProvider: StorageProvider): StorageProvider =
         when (val indexSettings = (configuration.storageProvider as? S3StorageProviderSettings)?.indexSettings?.takeIf { it.enabled }) {

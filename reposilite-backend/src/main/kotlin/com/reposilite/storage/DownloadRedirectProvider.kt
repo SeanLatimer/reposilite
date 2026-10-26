@@ -31,6 +31,13 @@ interface DownloadRedirectProvider {
 
     val downloadRedirectMode: DownloadRedirectMode
 
+    /**
+     * Whether a redirect to [getDownloadUrl] can be followed by clients for this location.
+     * Returning false makes Reposilite stream the file instead.
+     */
+    fun supportsDownloadRedirect(location: Location): Boolean =
+        true
+
     fun getDownloadUrl(location: Location): Result<URI, ErrorResponse>
 
 }
