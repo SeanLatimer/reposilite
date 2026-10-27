@@ -28,6 +28,13 @@ data class ListedObject(
 
 interface FullListingProvider {
 
+    /**
+     * Whether the provider renamed or removed stored objects while starting,
+     * so any listing built from an earlier snapshot is out of date.
+     */
+    val listingChangedAtStartup: Boolean
+        get() = false
+
     fun listAllObjects(): Result<List<ListedObject>, ErrorResponse>
 
 }

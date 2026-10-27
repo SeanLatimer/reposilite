@@ -79,6 +79,16 @@ internal class IndexedStorageProvider(
 
     private val seededDirectories = ConcurrentHashMap.newKeySet<String>()
 
+    init {
+        // e.g. the S3 provider restoring legacy keys: the existing index would list objects that moved
+        if (fullListing?.listingChangedAtStartup == true) {
+            journalist.logger.info("INDEX | Objects in repository $repository changed while starting, rebuilding its index")
+
+            reconcile()
+                .onError { throw IllegalStateException("Cannot rebuild the index of repository $repository: ${it.message}") }
+        }
+    }
+
     fun lastReconciledAt(): Instant? =
         index.lastReconciledAt(repository)
 
